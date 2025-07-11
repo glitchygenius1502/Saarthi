@@ -1,0 +1,159 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Saarthi Design System - Professional beige, brown, dark theme */
+
+@layer base {
+  :root {
+    /* Core Theme Colors - Beige & Brown Professional Palette */
+    --background: 42 15% 97%;
+    --foreground: 20 14% 8%;
+
+    --card: 36 20% 95%;
+    --card-foreground: 20 14% 10%;
+
+    --popover: 36 20% 95%;
+    --popover-foreground: 20 14% 10%;
+
+    --primary: 25 35% 15%;
+    --primary-foreground: 42 15% 97%;
+
+    --secondary: 35 25% 85%;
+    --secondary-foreground: 25 35% 15%;
+
+    --muted: 35 20% 88%;
+    --muted-foreground: 25 15% 35%;
+
+    --accent: 30 40% 75%;
+    --accent-foreground: 25 35% 15%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 35 15% 85%;
+    --input: 35 15% 90%;
+    --ring: 25 35% 15%;
+
+    --radius: 0.75rem;
+
+    /* Professional Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(25, 35%, 15%), hsl(30, 30%, 25%));
+    --gradient-warm: linear-gradient(135deg, hsl(35, 40%, 85%), hsl(42, 35%, 90%));
+    --gradient-hero: linear-gradient(135deg, hsl(25, 35%, 15%) 0%, hsl(30, 30%, 25%) 50%, hsl(35, 25%, 35%) 100%);
+    
+    /* Elegant Shadows */
+    --shadow-elegant: 0 10px 40px -10px hsl(25, 35%, 15% / 0.15);
+    --shadow-soft: 0 4px 20px -4px hsl(25, 35%, 15% / 0.08);
+    --shadow-feature: 0 8px 30px -8px hsl(25, 35%, 15% / 0.12);
+    
+    /* Smooth Transitions */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-bounce: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  }
+
+  .dark {
+    --background: 20 14% 8%;
+    --foreground: 42 15% 95%;
+
+    --card: 20 14% 10%;
+    --card-foreground: 42 15% 95%;
+
+    --popover: 20 14% 10%;
+    --popover-foreground: 42 15% 95%;
+
+    --primary: 42 15% 95%;
+    --primary-foreground: 25 35% 15%;
+
+    --secondary: 25 15% 18%;
+    --secondary-foreground: 42 15% 95%;
+
+    --muted: 25 15% 15%;
+    --muted-foreground: 35 15% 65%;
+
+    --accent: 30 25% 25%;
+    --accent-foreground: 42 15% 95%;
+
+    --destructive: 0 62% 30%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 25 15% 18%;
+    --input: 25 15% 18%;
+    --ring: 42 15% 95%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-muted;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-primary rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-accent;
+  }
+}
+
+@layer components {
+  /* Professional Button Variants */
+  .btn-hero {
+    @apply bg-gradient-to-r from-primary via-accent to-primary text-primary-foreground px-8 py-4 rounded-lg font-semibold text-lg shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105;
+  }
+
+  .btn-elegant {
+    @apply bg-white/10 backdrop-blur-sm border border-white/20 text-foreground px-6 py-3 rounded-lg font-medium hover:bg-white/20 transition-all duration-300;
+  }
+
+  .btn-feature {
+    @apply bg-gradient-to-r from-accent to-secondary text-accent-foreground px-6 py-3 rounded-lg font-medium shadow-md hover:shadow-lg transition-all duration-300 hover:-translate-y-1;
+  }
+
+  /* Card Variants */
+  .card-elegant {
+    @apply bg-card/80 backdrop-blur-sm border border-border/50 rounded-xl shadow-soft hover:shadow-elegant transition-all duration-300;
+  }
+
+  .card-feature {
+    @apply bg-gradient-to-br from-card to-accent/20 border border-border/30 rounded-xl shadow-feature hover:shadow-elegant transition-all duration-300 hover:-translate-y-1;
+  }
+
+  /* Navigation Styles */
+  .nav-link {
+    @apply relative text-foreground/80 hover:text-foreground transition-colors duration-300 after:content-[''] after:absolute after:w-full after:scale-x-0 after:h-0.5 after:bottom-0 after:left-0 after:bg-primary after:origin-bottom-right after:transition-transform after:duration-300 hover:after:scale-x-100 hover:after:origin-bottom-left;
+  }
+
+  /* Modal Styles */
+  .modal-overlay {
+    @apply fixed inset-0 bg-black/60 backdrop-blur-sm z-50;
+  }
+
+  .modal-content {
+    @apply fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-card rounded-2xl shadow-2xl border border-border/50 z-50 w-full max-w-md mx-4;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}

@@ -1,0 +1,73 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Saarthi Health Yojana Design System - Cream, Darker Brown, White Theme */
+
+@layer base {
+  :root {
+    --background: 48 100% 97%; /* Cream #FFF8F0 */
+    --foreground: 25 15% 30%; /* Darker Brown */
+
+    --card: 0 0% 100%; /* White */
+    --card-foreground: 25 30% 20%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 25 30% 20%;
+
+    --primary: 25 45% 25%; /* Darker Brown #8B5A3C */
+    --primary-foreground: 48 100% 97%;
+
+    --secondary: 48 50% 90%; /* Light Cream */
+    --secondary-foreground: 25 30% 20%;
+
+    --muted: 48 30% 92%;
+    --muted-foreground: 25 20% 45%;
+
+    --accent: 120 20% 70%; /* Subtle Green for health highlights */
+    --accent-foreground: 25 30% 20%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 25 25% 80%;
+    --input: 25 25% 80%;
+    --ring: 25 45% 35%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 48 100% 97%;
+    --sidebar-foreground: 25 30% 20%;
+    --sidebar-primary: 25 45% 35%;
+    --sidebar-primary-foreground: 48 100% 97%;
+    --sidebar-accent: 48 30% 92%;
+    --sidebar-accent-foreground: 25 30% 20%;
+    --sidebar-border: 25 25% 80%;
+    --sidebar-ring: 25 45% 35%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans;
+  }
+}
+
+/* Custom animations for smooth interactions */
+@layer utilities {
+  .card-hover {
+    @apply transition-all duration-300 hover:shadow-lg hover:-translate-y-1;
+  }
+  
+  .scheme-card {
+    @apply bg-white rounded-xl border border-border p-6 card-hover;
+  }
+  
+  .health-gradient {
+    background: linear-gradient(135deg, hsl(var(--background)) 0%, hsl(var(--accent)) 100%);
+  }
+}

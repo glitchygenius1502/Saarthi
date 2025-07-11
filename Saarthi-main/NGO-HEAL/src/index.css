@@ -1,0 +1,80 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700&display=swap');
+
+@layer base {
+  :root {
+    --background: #F5F1EB; /* Cream color */
+  --foreground: #9b675c; /* Suitable brown text color */
+  --primary: #6B4423;     /* Earth brown */
+  --primary-foreground: #F5F1EB; /* Cream for text on buttons etc */
+  --secondary: #8B5A3C;
+  --secondary-foreground: #F5F1EB;
+  --accent: #8B5A3C;
+  --accent-foreground: #F5F1EB;
+  --muted: #E8DDD4;
+  --muted-foreground: #4E342E;
+  --destructive: #D14343;
+  --destructive-foreground: #F5F1EB;
+
+    --border: 232 221 212;
+    --input: 232 221 212;
+    --ring: 107 68 35;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 254 252 249;
+    --sidebar-foreground: 107 68 35;
+    --sidebar-primary: 107 68 35;
+    --sidebar-primary-foreground: 254 252 249;
+    --sidebar-accent: 245 241 235;
+    --sidebar-accent-foreground: 107 68 35;
+    --sidebar-border: 232 221 212;
+    --sidebar-ring: 107 68 35;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-inter;
+    line-height: 1.6;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-poppins;
+  }
+}
+
+@layer components {
+  .card-hover {
+    @apply transition-all duration-500 hover:transform hover:-translate-y-3 hover:shadow-2xl hover:shadow-earth-brown/20;
+  }
+  
+  .btn-glow {
+    @apply transition-all duration-300 hover:shadow-lg hover:shadow-earth-brown/40;
+  }
+  
+  .text-gradient {
+    @apply bg-gradient-to-r from-earth-brown to-earth-brown-light bg-clip-text text-transparent;
+  }
+
+  .gentle-fade {
+    @apply animate-fade-in opacity-0;
+    animation-fill-mode: forwards;
+  }
+
+  .icon-float {
+    @apply animate-float;
+  }
+
+  .warm-glow {
+    @apply shadow-lg shadow-earth-brown/30;
+  }
+}
