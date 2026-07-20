@@ -26,7 +26,7 @@ const FeatureCard = ({
   const [isHovered, setIsHovered] = useState(false);
 
   const handleGoToFeature = () => {
-    window.open(link, '_blank', 'noopener,noreferrer');
+    window.location.href = link;
   };
 
   return (

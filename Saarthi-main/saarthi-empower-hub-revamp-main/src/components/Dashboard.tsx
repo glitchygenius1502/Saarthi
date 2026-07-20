@@ -153,7 +153,7 @@ const Dashboard = ({ userName }: DashboardProps) => {
   ];
 
   const handleFeatureClick = (link: string) => {
-    window.open(link, '_blank', 'noopener,noreferrer');
+    window.location.href = link;
   };
 
   const handleHelpClick = () => {
