@@ -1,0 +1,16 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "node build-all.mjs",
+  "outputDirectory": "dist",
+  "installCommand": "echo 'per-module installs happen in build-all.mjs'",
+  "rewrites": [
+    { "source": "/shecare/:path*", "destination": "/shecare/index.html" },
+    { "source": "/vaxalert/:path*", "destination": "/vaxalert/index.html" },
+    { "source": "/ngoheal/:path*", "destination": "/ngoheal/index.html" },
+    { "source": "/carecircle/:path*", "destination": "/carecircle/index.html" },
+    { "source": "/gynoconnect/:path*", "destination": "/gynoconnect/index.html" },
+    { "source": "/healthyojana/:path*", "destination": "/healthyojana/index.html" },
+    { "source": "/medivault/:path*", "destination": "/medivault/index.html" },
+    { "source": "/symptoscan/:path*", "destination": "/symptoscan/index.html" }
+  ]
+}

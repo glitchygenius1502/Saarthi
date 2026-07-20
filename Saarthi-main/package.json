@@ -1,0 +1,10 @@
+{
+  "name": "saarthi",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Saarthi — unified women's health platform (hub + all modules, one deployment).",
+  "type": "module",
+  "scripts": {
+    "build": "node build-all.mjs"
+  }
+}

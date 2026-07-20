@@ -20,7 +20,7 @@ const Dashboard = ({ userName }: DashboardProps) => {
       progress: 85,
       lastUsed: "2 days ago",
       color: "from-rose-400 to-pink-500",
-      link: "https://feminine-she-care-vpg6.vercel.app/",
+      link: "/shecare",
       used: true
     },
     {
@@ -30,7 +30,7 @@ const Dashboard = ({ userName }: DashboardProps) => {
       progress: 70,
       lastUsed: "5 days ago",
       color: "from-blue-400 to-cyan-500",
-      link: "https://symptoscan-2mg1.onrender.com/",
+      link: "/symptoscan",
       used: true
     },
     {
@@ -40,7 +40,7 @@ const Dashboard = ({ userName }: DashboardProps) => {
       progress: 60,
       lastUsed: "1 week ago",
       color: "from-emerald-400 to-green-500",
-      link: "https://gyno-connect-oasis.vercel.app/",
+      link: "/gynoconnect",
       used: true
     },
     {
@@ -50,7 +50,7 @@ const Dashboard = ({ userName }: DashboardProps) => {
       progress: 90,
       lastUsed: "1 day ago",
       color: "from-purple-400 to-violet-500",
-      link: "https://medi-safe-journal-vault.vercel.app/",
+      link: "/medivault",
       used: true
     },
     {
@@ -60,7 +60,7 @@ const Dashboard = ({ userName }: DashboardProps) => {
       progress: 0,
       lastUsed: "Never used",
       color: "from-amber-400 to-orange-500",
-      link: "http://health-yojana.vercel.app/",
+      link: "/healthyojana",
       used: false
     },
     {
@@ -70,7 +70,7 @@ const Dashboard = ({ userName }: DashboardProps) => {
       progress: 0,
       lastUsed: "Never used",
       color: "from-teal-400 to-cyan-500",
-      link: "https://ngo-heal.vercel.app/",
+      link: "/ngoheal",
       used: false
     },
     {
@@ -80,7 +80,7 @@ const Dashboard = ({ userName }: DashboardProps) => {
       progress: 75,
       lastUsed: "3 days ago",
       color: "from-indigo-400 to-purple-500",
-      link: "https://carecircle-women-unite.vercel.app/",
+      link: "/carecircle",
       used: true
     },
     {
@@ -90,7 +90,7 @@ const Dashboard = ({ userName }: DashboardProps) => {
       progress: 0,
       lastUsed: "Never used",
       color: "from-pink-400 to-rose-500",
-      link: "https://vaxalert2.vercel.app/",
+      link: "/vaxalert",
       used: false
     }
   ];
@@ -303,7 +303,7 @@ const Dashboard = ({ userName }: DashboardProps) => {
                     <p className="text-sm text-muted-foreground mb-3">
                       Connect with other women in our supportive community
                     </p>
-                    <Button size="sm" className="btn-feature" onClick={() => handleFeatureClick("https://carecircle-women-unite.vercel.app/")}>
+                    <Button size="sm" className="btn-feature" onClick={() => handleFeatureClick("/carecircle")}>
                       Join Community
                     </Button>
                   </div>

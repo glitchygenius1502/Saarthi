@@ -67,7 +67,7 @@ const Index = () => {
       fullDescription: "Complete period tracking with mood analysis, flow logs, and smart reminders to help you understand your cycle patterns better",
       users: "25k+ users",
       color: "from-rose-400 to-pink-500",
-      link: "https://feminine-she-care-vpg6.vercel.app/"
+      link: "/shecare"
     },
     {
       icon: Activity,
@@ -76,7 +76,7 @@ const Index = () => {
       fullDescription: "AI-powered symptom analysis offering verified health insights and personalized recommendations from medical experts",
       users: "18k+ users",
       color: "from-blue-400 to-cyan-500",
-      link: "https://symptoscan-2mg1.onrender.com/"
+      link: "/symptoscan"
     },
     {
       icon: Stethoscope,
@@ -85,7 +85,7 @@ const Index = () => {
       fullDescription: "Professional video consultations and secure chat with certified gynecologists for expert medical advice",
       users: "12k+ users",
       color: "from-emerald-400 to-green-500",
-      link: "https://gyno-connect-oasis.vercel.app/"
+      link: "/gynoconnect"
     },
     {
       icon: Database,
@@ -94,7 +94,7 @@ const Index = () => {
       fullDescription: "Secure digital vault for prescriptions, medical reports, vitals, and health logs with encrypted storage",
       users: "30k+ users",
       color: "from-purple-400 to-violet-500",
-      link: "https://medi-safe-journal-vault.vercel.app/"
+      link: "/medivault"
     },
     {
       icon: FileText,
@@ -103,7 +103,7 @@ const Index = () => {
       fullDescription: "Navigate women-centric government health schemes with application assistance and eligibility guidance",
       users: "8k+ users",
       color: "from-amber-400 to-orange-500",
-      link: "http://health-yojana.vercel.app/"
+      link: "/healthyojana"
     },
     {
       icon: Building2,
@@ -112,7 +112,7 @@ const Index = () => {
       fullDescription: "Connect with verified NGOs for emergency shelter, legal aid, counseling, and community support resources",
       users: "15k+ users",
       color: "from-teal-400 to-cyan-500",
-      link: "https://ngo-heal.vercel.app/"
+      link: "/ngoheal"
     },
     {
       icon: MessageCircle,
@@ -121,7 +121,7 @@ const Index = () => {
       fullDescription: "Anonymous peer support groups for emotional wellness with trained moderators and mental health resources",
       users: "20k+ users",
       color: "from-indigo-400 to-purple-500",
-      link: "https://carecircle-women-unite.vercel.app/"
+      link: "/carecircle"
     },
     {
       icon: Shield,
@@ -130,7 +130,7 @@ const Index = () => {
       fullDescription: "Personalized vaccination schedules, reminders, and updates on latest women-specific vaccines and health recommendations",
       users: "10k+ users",
       color: "from-pink-400 to-rose-500",
-      link: "https://vaxalert2.vercel.app/"
+      link: "/vaxalert"
     }
   ];
 
