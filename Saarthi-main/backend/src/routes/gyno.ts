@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import Appointment from '../models/Appointment';
+import { requireAuth, AuthedRequest } from '../middleware/auth';
 
 const router = Router();
 
@@ -218,6 +220,31 @@ router.get('/doctors', async (req, res) => {
     }
     return res.status(502).json({ error: 'Could not reach the live directory right now. Please try again.', doctors: [] });
   }
+});
+
+// POST /api/gyno/appointments  (auth) — persist a booking request.
+router.post('/appointments', requireAuth, async (req: AuthedRequest, res) => {
+  const { doctorId, doctorName, clinic, address, date, time, mode } = req.body ?? {};
+  if (!doctorName || !date || !time) {
+    return res.status(400).json({ error: 'Doctor, date and time are required.' });
+  }
+  const appt = await Appointment.create({
+    userId: req.user!.id,
+    doctorId,
+    doctorName,
+    clinic,
+    address,
+    date,
+    time,
+    mode: mode || 'appointment',
+  });
+  return res.status(201).json({ appointment: appt });
+});
+
+// GET /api/gyno/appointments  (auth) — the user's booking requests.
+router.get('/appointments', requireAuth, async (req: AuthedRequest, res) => {
+  const appointments = await Appointment.find({ userId: req.user!.id }).sort({ createdAt: -1 });
+  return res.json({ appointments });
 });
 
 export default router;

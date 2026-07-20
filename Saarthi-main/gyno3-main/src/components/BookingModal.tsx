@@ -5,20 +5,25 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { bookAppointment, getToken, goToLogin } from "@/lib/api";
 
 interface BookingModalProps {
   isOpen: boolean;
   onClose: () => void;
+  doctorId?: string;
   doctorName: string;
+  clinic?: string;
+  address?: string;
   bookingType: "call" | "video" | "appointment";
 }
 
-const BookingModal = ({ isOpen, onClose, doctorName, bookingType }: BookingModalProps) => {
+const BookingModal = ({ isOpen, onClose, doctorId, doctorName, clinic, address, bookingType }: BookingModalProps) => {
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedTime, setSelectedTime] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
 
-  const handleConfirmBooking = () => {
+  const handleConfirmBooking = async () => {
     if (!selectedDate || !selectedTime) {
       toast({
         title: "Please select date and time",
@@ -28,11 +33,42 @@ const BookingModal = ({ isOpen, onClose, doctorName, bookingType }: BookingModal
       return;
     }
 
-    toast({
-      title: "Booking Confirmed! ✅",
-      description: `Your ${bookingType} with ${doctorName} on ${selectedDate} at ${selectedTime} has been confirmed. Details sent to your registered email.`,
+    if (!getToken()) {
+      toast({
+        title: "Please sign in first",
+        description: "You need a Saarthi account to book. Redirecting you to sign in…",
+        variant: "destructive",
+      });
+      setTimeout(goToLogin, 1200);
+      return;
+    }
+
+    setSubmitting(true);
+    const { ok, status, data } = await bookAppointment({
+      doctorId,
+      doctorName,
+      clinic,
+      address,
+      date: selectedDate,
+      time: selectedTime,
+      mode: bookingType,
     });
-    
+    setSubmitting(false);
+
+    if (!ok) {
+      if (status === 401) {
+        toast({ title: "Session expired", description: "Please sign in again.", variant: "destructive" });
+        setTimeout(goToLogin, 1200);
+        return;
+      }
+      toast({ title: "Could not book", description: data?.error || "Please try again.", variant: "destructive" });
+      return;
+    }
+
+    toast({
+      title: "Appointment booked! ✅",
+      description: `Your appointment with ${doctorName} on ${selectedDate} at ${selectedTime} is saved to your account.`,
+    });
     onClose();
     setSelectedDate("");
     setSelectedTime("");
@@ -100,17 +136,17 @@ const BookingModal = ({ isOpen, onClose, doctorName, bookingType }: BookingModal
             </Button>
             <Button
               onClick={handleConfirmBooking}
-              className="flex-1 bg-[#2f9e44] hover:bg-[#2f9e44]/90 text-white"
+              disabled={submitting}
+              className="flex-1 bg-[#2f9e44] hover:bg-[#2f9e44]/90 text-white disabled:opacity-70"
             >
-              Confirm Booking
+              {submitting ? "Booking…" : "Confirm Booking"}
             </Button>
           </div>
 
           <div className="text-xs text-[#5c3b28]/60 text-center bg-[#fde0e0] p-3 rounded-lg">
             <div className="space-y-1">
-              <div>📧 Confirmation details will be sent to your registered email</div>
-              <div>📱 SMS reminder will be sent to your phone number</div>
-              <div>🔔 You'll receive a notification 30 minutes before your appointment</div>
+              <div>🔐 Your appointment is saved securely to your Saarthi account</div>
+              <div>📋 View it any time under your bookings</div>
             </div>
           </div>
         </div>

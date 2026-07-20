@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import BookingModal from "./BookingModal";
-import CallReceptionModal from "./CallReceptionModal";
 
 interface Doctor {
   id: number | string;
@@ -30,18 +29,24 @@ interface DoctorCardProps {
 const DoctorCard = ({ doctor, onDirections }: DoctorCardProps) => {
   const { toast } = useToast();
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
-  const [isCallModalOpen, setIsCallModalOpen] = useState(false);
   const [bookingType, setBookingType] = useState<"call" | "video" | "appointment">("appointment");
   const [avatarBroken, setAvatarBroken] = useState(false);
 
-  // Elegant illustrated avatar generated from the doctor's name (free, no key).
+  // Cute character avatar generated from the doctor's name (free, no key).
   // Falls back to an emoji avatar if the image can't load, so cards never break.
-  const avatarUrl = `https://api.dicebear.com/9.x/lorelei/svg?seed=${encodeURIComponent(
+  const avatarUrl = `https://api.dicebear.com/9.x/big-smile/svg?seed=${encodeURIComponent(
     doctor.name
   )}&backgroundColor=ffd5dc,ffdfbf,d1d4f9,c0aede,b6e3f4,ffd5b3,c9f0d8&backgroundType=gradientLinear&radius=50`;
 
   const handleCall = () => {
-    setIsCallModalOpen(true);
+    if (doctor.phone) {
+      window.location.href = `tel:${doctor.phone.replace(/\s+/g, "")}`;
+    } else {
+      toast({
+        title: "Phone number not listed",
+        description: "This clinic hasn't published a public number. Try booking an appointment instead.",
+      });
+    }
   };
 
   const handleBook = () => {
@@ -122,7 +127,7 @@ const DoctorCard = ({ doctor, onDirections }: DoctorCardProps) => {
               variant="outline"
               className="flex-1 border-[#e03131] text-[#e03131] hover:bg-[#e03131] hover:text-white rounded-full"
             >
-              📞 Call
+              📞 {doctor.phone ? "Call" : "No number"}
             </Button>
             <Button
               onClick={handleBook}
@@ -146,13 +151,11 @@ const DoctorCard = ({ doctor, onDirections }: DoctorCardProps) => {
       <BookingModal
         isOpen={isBookingModalOpen}
         onClose={() => setIsBookingModalOpen(false)}
+        doctorId={String(doctor.id)}
         doctorName={doctor.name}
+        clinic={doctor.clinic}
+        address={doctor.address}
         bookingType={bookingType}
-      />
-
-      <CallReceptionModal
-        isOpen={isCallModalOpen}
-        onClose={() => setIsCallModalOpen(false)}
       />
     </>
   );

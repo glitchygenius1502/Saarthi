@@ -62,6 +62,8 @@ const NearbyDoctors = () => {
   const [route, setRoute] = useState<[number, number][]>([]);
   const [routeInfo, setRouteInfo] = useState<{ name: string; km: number; mins: number } | null>(null);
   const [destination, setDestination] = useState<{ lat: number; lng: number; name: string } | null>(null);
+  const [hasSearched, setHasSearched] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(6);
   const { toast } = useToast();
 
   const fetchDoctors = async (coords: { lat: number; lng: number }) => {
@@ -72,6 +74,7 @@ const NearbyDoctors = () => {
       });
       const list = res.data?.doctors ?? [];
       setDoctors(list);
+      setVisibleCount(6);
       if (list.length === 0) {
         toast({ title: "No gynecologists found nearby", description: "Try again from a different location." });
       }
@@ -91,6 +94,7 @@ const NearbyDoctors = () => {
       toast({ title: "Geolocation not supported", variant: "destructive" });
       return;
     }
+    setHasSearched(true);
     setIsLoading(true);
     navigator.geolocation.getCurrentPosition(
       (position) => {
@@ -109,12 +113,6 @@ const NearbyDoctors = () => {
       { enableHighAccuracy: true, timeout: 10000 }
     );
   };
-
-  // Prompt for location automatically on first load.
-  useEffect(() => {
-    locate();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // In-app driving directions (OSRM) drawn on the Leaflet map — no redirect.
   const handleDirections = async (doc: any) => {
@@ -163,46 +161,65 @@ const NearbyDoctors = () => {
               className="bg-[#e03131] hover:bg-[#e03131]/90 text-white rounded-full flex items-center space-x-2 shrink-0"
             >
               {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <MapPin className="w-4 h-4" />}
-              <span>{isLoading ? "Finding…" : location ? "Refresh location" : "📍 Use My Location"}</span>
+              <span>{isLoading ? "Finding…" : hasSearched ? "Search again" : "📍 Start finding"}</span>
             </Button>
           </div>
-          {location && (
+          {hasSearched && location && !isLoading && (
             <div className="mt-3 text-sm text-[#5c3b28]/70 flex items-center gap-2">
               <span className="inline-block w-2 h-2 rounded-full bg-[#2f9e44]" />
-              {doctors.length} found near {location.lat.toFixed(3)}, {location.lng.toFixed(3)}
+              {doctors.length} gynecologists found near you
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Doctor cards */}
-      {isLoading && doctors.length === 0 ? (
+      {/* Doctor cards — only after the user starts a search */}
+      {!hasSearched ? (
+        <div className="rounded-2xl border border-dashed border-[#fde0e0] bg-[#fff7f2] py-14 text-center text-[#5c3b28]/70">
+          <div className="text-4xl mb-2">🔍</div>
+          <p className="font-medium text-[#5c3b28]">Tap “Start finding” to see gynecologists near you</p>
+          <p className="text-sm">We’ll ask for your location, then list the closest doctors first.</p>
+        </div>
+      ) : isLoading && doctors.length === 0 ? (
         <div className="flex items-center justify-center py-16 text-[#5c3b28]/70">
           <Loader2 className="w-6 h-6 animate-spin mr-2" /> Finding gynecologists near you…
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {doctors.map((doctor: any) => (
-            <DoctorCard
-              key={doctor.id}
-              doctor={{
-                id: doctor.id,
-                name: doctor.name,
-                rating: doctor.rating,
-                ratingCount: doctor.ratingCount,
-                clinic: doctor.clinic,
-                address: doctor.address || doctor.city,
-                timings: doctor.timing,
-                specialization: doctor.speciality,
-                image: "👩‍⚕️",
-                phone: doctor.phone || "",
-                website: doctor.website,
-                distanceKm: doctor.distanceKm,
-              }}
-              onDirections={() => handleDirections(doctor)}
-            />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {doctors.slice(0, visibleCount).map((doctor: any) => (
+              <DoctorCard
+                key={doctor.id}
+                doctor={{
+                  id: doctor.id,
+                  name: doctor.name,
+                  rating: doctor.rating,
+                  ratingCount: doctor.ratingCount,
+                  clinic: doctor.clinic,
+                  address: doctor.address || doctor.city,
+                  timings: doctor.timing,
+                  specialization: doctor.speciality,
+                  image: "👩‍⚕️",
+                  phone: doctor.phone || "",
+                  website: doctor.website,
+                  distanceKm: doctor.distanceKm,
+                }}
+                onDirections={() => handleDirections(doctor)}
+              />
+            ))}
+          </div>
+          {visibleCount < doctors.length && (
+            <div className="flex justify-center mt-6">
+              <Button
+                onClick={() => setVisibleCount((c) => c + 6)}
+                variant="outline"
+                className="border-[#e03131] text-[#e03131] hover:bg-[#e03131] hover:text-white rounded-full px-8"
+              >
+                Show more ({doctors.length - visibleCount} more)
+              </Button>
+            </div>
+          )}
+        </>
       )}
 
       {/* Map (always visible) */}
