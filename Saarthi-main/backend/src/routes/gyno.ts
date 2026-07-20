@@ -34,6 +34,51 @@ interface DoctorResult {
   distanceKm: number;
 }
 
+function isGynText(...parts: string[]): boolean {
+  const s = parts.join(' ').toLowerCase();
+  return /gyn|obstet|women|maternit|matern|prasuti|matru|fertil|ivf/.test(s);
+}
+
+async function geoapify(lat: number, lng: number, radiusM: number): Promise<DoctorResult[]> {
+  const key = process.env.GEOAPIFY_API_KEY as string;
+  const url =
+    `https://api.geoapify.com/v2/places?categories=healthcare.clinic_or_praxis,healthcare.hospital` +
+    `&filter=circle:${lng},${lat},${radiusM}&bias=proximity:${lng},${lat}&limit=80&apiKey=${key}`;
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`Geoapify ${resp.status}: ${await resp.text()}`);
+  const json: any = await resp.json();
+  return (json.features || [])
+    .map((f: any): DoctorResult | null => {
+      const p = f.properties || {};
+      const plat = p.lat ?? f.geometry?.coordinates?.[1];
+      const plng = p.lon ?? f.geometry?.coordinates?.[0];
+      const name = p.name || p.address_line1;
+      if (plat == null || plng == null || !name) return null;
+      const raw = p.datasource?.raw || {};
+      const spec = String(raw['healthcare:speciality'] || '');
+      const isGyn = isGynText(name, spec, raw.healthcare || '');
+      const isHospital = String(raw.amenity || raw.healthcare || '').includes('hospital');
+      return {
+        id: String(p.place_id || p.osm_id || `${plat},${plng}`),
+        name,
+        clinic: name,
+        speciality: isGyn ? 'Obstetrician & Gynaecologist' : isHospital ? 'Hospital' : 'Clinic',
+        isGyn,
+        city: p.city || '',
+        address: p.formatted || p.address_line2 || '',
+        phone: raw.phone || raw['contact:phone'] || '',
+        timing: raw.opening_hours || '',
+        website: p.website || raw.website || raw['contact:website'] || '',
+        lat: plat,
+        lng: plng,
+        distanceKm: Math.round(haversineKm(lat, lng, plat, plng) * 10) / 10,
+      };
+    })
+    .filter((d: DoctorResult | null): d is DoctorResult => !!d)
+    .sort((a, b) => Number(b.isGyn) - Number(a.isGyn) || a.distanceKm - b.distanceKm)
+    .slice(0, 60);
+}
+
 async function googlePlaces(lat: number, lng: number, radiusM: number): Promise<DoctorResult[]> {
   const key = process.env.GOOGLE_MAPS_API_KEY as string;
   const resp = await fetch('https://places.googleapis.com/v1/places:searchText', {
@@ -146,15 +191,24 @@ router.get('/doctors', async (req, res) => {
   }
   const radiusKm = Math.min(50, req.query.radius ? parseFloat(String(req.query.radius)) : 10);
   const radiusM = Math.round(radiusKm * 1000);
-  const source = process.env.GOOGLE_MAPS_API_KEY ? 'google' : 'osm';
+  const source = process.env.GEOAPIFY_API_KEY
+    ? 'geoapify'
+    : process.env.GOOGLE_MAPS_API_KEY
+      ? 'google'
+      : 'osm';
 
   try {
-    const doctors = source === 'google' ? await googlePlaces(lat, lng, radiusM) : await overpass(lat, lng, radiusM);
+    const doctors =
+      source === 'geoapify'
+        ? await geoapify(lat, lng, radiusM)
+        : source === 'google'
+          ? await googlePlaces(lat, lng, radiusM)
+          : await overpass(lat, lng, radiusM);
     return res.json({ doctors, count: doctors.length, source, near: { lat, lng }, radiusKm });
   } catch (err: any) {
     console.error('[gyno] search error', err?.message || err);
-    // If Google fails for any reason, try the keyless fallback before giving up.
-    if (source === 'google') {
+    // If the primary provider fails, try the keyless fallback before giving up.
+    if (source !== 'osm') {
       try {
         const doctors = await overpass(lat, lng, radiusM);
         return res.json({ doctors, count: doctors.length, source: 'osm-fallback', near: { lat, lng }, radiusKm });
