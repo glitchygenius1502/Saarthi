@@ -71,11 +71,16 @@ router.get('/summary', async (req: AuthedRequest, res) => {
   // Average cycle length from consecutive start dates.
   const starts = periods.map((p: any) => new Date(p.startDate).getTime());
   let avgCycle = 28;
+  let regularityScore = 70; // neutral default until we have enough history
   if (starts.length >= 2) {
     const gaps: number[] = [];
     for (let i = 1; i < starts.length; i++) gaps.push((starts[i] - starts[i - 1]) / DAY);
     const mean = gaps.reduce((a, b) => a + b, 0) / gaps.length;
     if (mean >= 18 && mean <= 45) avgCycle = Math.round(mean);
+    // Regularity: lower spread between cycles => higher score.
+    const variance = gaps.reduce((a, b) => a + (b - mean) ** 2, 0) / gaps.length;
+    const stdev = Math.sqrt(variance);
+    regularityScore = Math.max(45, Math.min(98, Math.round(100 - stdev * 6)));
   }
 
   // Average period (bleeding) length where endDate is known.
@@ -129,6 +134,7 @@ router.get('/summary', async (req: AuthedRequest, res) => {
     hasData: true,
     avgCycleLength: avgCycle,
     avgPeriodLength,
+    regularityScore,
     lastPeriodStart: lastStart,
     nextPeriodDate,
     daysUntilNext,

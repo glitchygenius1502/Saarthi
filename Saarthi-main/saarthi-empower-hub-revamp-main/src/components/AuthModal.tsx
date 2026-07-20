@@ -84,22 +84,27 @@ const AuthModal = ({ isOpen, onClose, onLogin, defaultMode = 'login' }: AuthModa
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) return;
 
     setIsSubmitting(true);
 
-    const result = isLogin
-      ? login(formData.email, formData.password)
-      : signup({
-          name: formData.name,
-          email: formData.email,
-          password: formData.password,
-          phone: formData.phone,
-          age: formData.age,
-          city: formData.city,
-        });
+    let result;
+    try {
+      result = isLogin
+        ? await login(formData.email, formData.password)
+        : await signup({
+            name: formData.name,
+            email: formData.email,
+            password: formData.password,
+            phone: formData.phone,
+            age: formData.age,
+            city: formData.city,
+          });
+    } catch {
+      result = { ok: false as const, error: 'Network error. Please check your connection and try again.' };
+    }
 
     setIsSubmitting(false);
 

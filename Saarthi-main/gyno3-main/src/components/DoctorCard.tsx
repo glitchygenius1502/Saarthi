@@ -7,7 +7,7 @@ import BookingModal from "./BookingModal";
 import CallReceptionModal from "./CallReceptionModal";
 
 interface Doctor {
-  id: number;
+  id: number | string;
   name: string;
   rating: number;
   clinic: string;
@@ -16,13 +16,15 @@ interface Doctor {
   specialization: string;
   image: string;
   phone: string;
+  distanceKm?: number;
 }
 
 interface DoctorCardProps {
   doctor: Doctor;
+  onDirections?: () => void;
 }
 
-const DoctorCard = ({ doctor }: DoctorCardProps) => {
+const DoctorCard = ({ doctor, onDirections }: DoctorCardProps) => {
   const { toast } = useToast();
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [isCallModalOpen, setIsCallModalOpen] = useState(false);
@@ -65,9 +67,14 @@ const DoctorCard = ({ doctor }: DoctorCardProps) => {
             <div className="flex-1 space-y-2">
               <div>
                 <h3 className="font-semibold text-[#5c3b28] text-lg">{doctor.name}</h3>
-                <div className="flex items-center space-x-1 mb-1">
+                <div className="flex items-center space-x-2 mb-1">
                   <span className="text-yellow-500">⭐</span>
                   <span className="text-sm font-medium text-[#5c3b28]">{doctor.rating}</span>
+                  {typeof doctor.distanceKm === "number" && (
+                    <span className="text-xs bg-[#e7f5ea] text-[#2f9e44] px-2 py-0.5 rounded-full">
+                      {doctor.distanceKm} km away
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -107,6 +114,15 @@ const DoctorCard = ({ doctor }: DoctorCardProps) => {
               📅 Book
             </Button>
           </div>
+          {onDirections && (
+            <Button
+              onClick={onDirections}
+              variant="outline"
+              className="w-full mt-2 border-[#1971c2] text-[#1971c2] hover:bg-[#1971c2] hover:text-white rounded-full"
+            >
+              🧭 Directions
+            </Button>
+          )}
         </CardContent>
       </Card>
 

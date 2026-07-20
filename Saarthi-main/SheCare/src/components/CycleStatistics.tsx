@@ -2,7 +2,7 @@
 import React from 'react';
 import { TrendingUp } from 'lucide-react';
 
-const CycleStatistics = ({ cycleHealth, periodsLogged, currentPhase }) => {
+const CycleStatistics = ({ cycleHealth, periodsLogged, currentPhase, avgCycleLength = 28, avgPeriodLength = 5 }) => {
   const getPatternStatus = () => {
     if (periodsLogged < 3) return { text: 'Building Cycle Pattern', color: 'text-green-600', bg: 'bg-green-100' };
     if (cycleHealth >= 80) return { text: 'Healthy Cycle Pattern', color: 'text-green-600', bg: 'bg-green-100' };
@@ -23,7 +23,7 @@ const CycleStatistics = ({ cycleHealth, periodsLogged, currentPhase }) => {
       <div className="space-y-4">
         <div className="flex justify-between items-center">
           <span className="text-[#9b7d65]">Average Cycle Length</span>
-          <span className="text-[#5c3b28] font-semibold">28 days</span>
+          <span className="text-[#5c3b28] font-semibold">{avgCycleLength} days</span>
         </div>
 
         <div className="space-y-2">
@@ -41,7 +41,7 @@ const CycleStatistics = ({ cycleHealth, periodsLogged, currentPhase }) => {
 
         <div className="flex justify-between items-center">
           <span className="text-[#9b7d65]">Period Length</span>
-          <span className="text-[#5c3b28] font-semibold">5 days</span>
+          <span className="text-[#5c3b28] font-semibold">{avgPeriodLength} days</span>
         </div>
 
         <div className="flex justify-between items-center">

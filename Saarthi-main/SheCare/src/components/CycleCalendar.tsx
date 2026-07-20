@@ -3,12 +3,13 @@ import React from 'react';
 import { format, addDays, isSameDay, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, differenceInDays } from 'date-fns';
 import { ChevronLeft, ChevronRight, Droplet, Leaf, Sun, Moon } from 'lucide-react';
 
-const CycleCalendar = ({ 
-  periodStartDate, 
+const CycleCalendar = ({
+  periodStartDate,
   previousPeriodDate,
-  onDateSelect, 
-  currentMonth, 
-  onMonthChange 
+  onDateSelect,
+  currentMonth,
+  onMonthChange,
+  cycleLength = 28
 }) => {
   const today = new Date();
   const monthStart = startOfMonth(currentMonth);
@@ -26,7 +27,7 @@ const CycleCalendar = ({
     
     // Check for next month's predicted period
     if (periodStartDate) {
-      const nextPeriodStart = addDays(periodStartDate, 28);
+      const nextPeriodStart = addDays(periodStartDate, cycleLength);
       if (isSameMonth(date, nextPeriodStart)) {
         const daysSinceNextStart = Math.floor((date - nextPeriodStart) / (1000 * 60 * 60 * 24));
         if (daysSinceNextStart >= 0 && daysSinceNextStart <= 6) return 'next-period';

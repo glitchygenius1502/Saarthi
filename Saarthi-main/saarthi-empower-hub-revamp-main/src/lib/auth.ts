@@ -1,21 +1,11 @@
-// Client-side auth for Saarthi.
+// Auth for Saarthi, backed by the real backend API (/api/auth) with JWT.
 //
-// NOTE: This stores users and the active session in the browser's
-// localStorage. It is intended for this demo / hackathon project and works on
-// static hosting (Vercel) with no backend. It is NOT production-grade security
-// — passwords are only lightly obfuscated, not properly hashed. Swap this out
-// for a real backend (e.g. Supabase) when you need real security.
-
-export interface StoredUser {
-  name: string;
-  email: string;
-  phone?: string;
-  age?: string;
-  city?: string;
-  password: string; // obfuscated, see encode()
-}
+// The token + user are stored in localStorage under shared keys. Because every
+// module is served from the same origin (sub-paths of one deployment), all
+// modules read the same session — one login works across the whole site.
 
 export interface SessionUser {
+  id: string;
   name: string;
   email: string;
 }
@@ -24,48 +14,23 @@ export type AuthResult =
   | { ok: true; user: SessionUser }
   | { ok: false; error: string };
 
-const USERS_KEY = 'saarthi_users';
-const SESSION_KEY = 'saarthi_session';
+const TOKEN_KEY = 'saarthi_token';
+const USER_KEY = 'saarthi_user';
 
-// Light obfuscation so passwords aren't sitting in plain text in devtools.
-// This is NOT secure hashing — do not treat it as such.
-const encode = (value: string): string => {
-  try {
-    return btoa(unescape(encodeURIComponent(value)));
-  } catch {
-    return value;
-  }
-};
+async function postJson(path: string, body: unknown) {
+  const res = await fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  return { ok: res.ok, data };
+}
 
-const loadUsers = (): StoredUser[] => {
-  try {
-    const raw = localStorage.getItem(USERS_KEY);
-    return raw ? (JSON.parse(raw) as StoredUser[]) : [];
-  } catch {
-    return [];
-  }
-};
-
-const saveUsers = (users: StoredUser[]): void => {
-  localStorage.setItem(USERS_KEY, JSON.stringify(users));
-};
-
-const setSession = (user: SessionUser): void => {
-  localStorage.setItem(SESSION_KEY, JSON.stringify(user));
-};
-
-export const getSession = (): SessionUser | null => {
-  try {
-    const raw = localStorage.getItem(SESSION_KEY);
-    return raw ? (JSON.parse(raw) as SessionUser) : null;
-  } catch {
-    return null;
-  }
-};
-
-export const logout = (): void => {
-  localStorage.removeItem(SESSION_KEY);
-};
+function persist(token: string, user: SessionUser) {
+  localStorage.setItem(TOKEN_KEY, token);
+  localStorage.setItem(USER_KEY, JSON.stringify(user));
+}
 
 export interface SignupData {
   name: string;
@@ -76,45 +41,34 @@ export interface SignupData {
   city?: string;
 }
 
-export const signup = (data: SignupData): AuthResult => {
-  const email = data.email.trim().toLowerCase();
-  const users = loadUsers();
+export async function signup(data: SignupData): Promise<AuthResult> {
+  const { ok, data: res } = await postJson('/api/auth/register', data);
+  if (!ok) return { ok: false, error: res.error || 'Could not create your account. Please try again.' };
+  persist(res.token, res.user);
+  return { ok: true, user: res.user };
+}
 
-  if (users.some((u) => u.email === email)) {
-    return { ok: false, error: 'An account with this email already exists. Please sign in instead.' };
+export async function login(email: string, password: string): Promise<AuthResult> {
+  const { ok, data: res } = await postJson('/api/auth/login', { email, password });
+  if (!ok) return { ok: false, error: res.error || 'Could not sign you in. Please try again.' };
+  persist(res.token, res.user);
+  return { ok: true, user: res.user };
+}
+
+export function getSession(): SessionUser | null {
+  try {
+    const raw = localStorage.getItem(USER_KEY);
+    return raw ? (JSON.parse(raw) as SessionUser) : null;
+  } catch {
+    return null;
   }
+}
 
-  const newUser: StoredUser = {
-    name: data.name.trim(),
-    email,
-    phone: data.phone,
-    age: data.age,
-    city: data.city,
-    password: encode(data.password),
-  };
+export function getToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY);
+}
 
-  users.push(newUser);
-  saveUsers(users);
-
-  const session: SessionUser = { name: newUser.name, email: newUser.email };
-  setSession(session);
-  return { ok: true, user: session };
-};
-
-export const login = (email: string, password: string): AuthResult => {
-  const normalizedEmail = email.trim().toLowerCase();
-  const users = loadUsers();
-  const user = users.find((u) => u.email === normalizedEmail);
-
-  if (!user) {
-    return { ok: false, error: 'No account found with this email. Please sign up first.' };
-  }
-
-  if (user.password !== encode(password)) {
-    return { ok: false, error: 'Incorrect password. Please try again.' };
-  }
-
-  const session: SessionUser = { name: user.name, email: user.email };
-  setSession(session);
-  return { ok: true, user: session };
-};
+export function logout(): void {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
+}

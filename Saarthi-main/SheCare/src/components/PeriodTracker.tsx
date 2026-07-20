@@ -3,12 +3,13 @@ import React from 'react';
 import { Droplet, Calendar, Clock, Heart } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 
-const PeriodTracker = ({ 
-  currentDay, 
-  daysUntilNext, 
-  cycleHealth, 
+const PeriodTracker = ({
+  currentDay,
+  daysUntilNext,
+  cycleHealth,
   currentPhase,
-  periodStartDate 
+  periodStartDate,
+  cycleLength = 28
 }) => {
   const getPhaseIcon = (phase) => {
     switch (phase) {
@@ -42,9 +43,9 @@ const PeriodTracker = ({
             <h3 className="text-lg font-semibold text-[#5c3b28]">Period Tracker</h3>
             <p className="text-[#9b7d65] text-sm">Track your menstrual cycle</p>
           </div>
-          {currentDay > 28 && (
+          {currentDay > cycleLength && (
             <div className="ml-auto bg-red-500 text-white px-3 py-1 rounded-full text-xs font-medium">
-              ⚠️ {Math.abs(currentDay - 28)} days late
+              ⚠️ {Math.abs(currentDay - cycleLength)} days late
             </div>
           )}
         </div>
@@ -91,7 +92,7 @@ const PeriodTracker = ({
         
         <div className="space-y-3">
           <div className="text-sm text-[#9b7d65]">
-            Day {currentDay} of 28 
+            Day {currentDay} of {cycleLength}
             <span className="ml-2 inline-block bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs">
               {currentPhase} Phase
             </span>
@@ -99,12 +100,12 @@ const PeriodTracker = ({
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-[#9b7d65]">Cycle Progress</span>
-              <span className="text-[#5c3b28] font-medium">{Math.min(Math.round((currentDay / 28) * 100), 100)}%</span>
+              <span className="text-[#5c3b28] font-medium">{Math.min(Math.round((currentDay / cycleLength) * 100), 100)}%</span>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-2">
-              <div 
+              <div
                 className="bg-[#8d6e63] h-2 rounded-full transition-all duration-300"
-                style={{ width: `${Math.min((currentDay / 28) * 100, 100)}%` }}
+                style={{ width: `${Math.min((currentDay / cycleLength) * 100, 100)}%` }}
               ></div>
             </div>
           </div>
@@ -125,7 +126,7 @@ const PeriodTracker = ({
           <div className="text-[#9b7d65] mb-3">days remaining</div>
           {periodStartDate && (
             <div className="bg-gray-100 px-3 py-1 rounded-full text-sm text-[#5c3b28]">
-              Expected: {format(addDays(periodStartDate, 28), 'dd/MM/yyyy')}
+              Expected: {format(addDays(periodStartDate, cycleLength), 'dd/MM/yyyy')}
             </div>
           )}
         </div>

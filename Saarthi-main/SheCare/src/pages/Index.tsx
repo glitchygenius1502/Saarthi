@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Bell, LogIn } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import WelcomeSection from '../components/WelcomeSection';
 import PeriodTracker from '../components/PeriodTracker';
@@ -8,185 +9,208 @@ import CycleTips from '../components/CycleTips';
 import QuickLog from '../components/QuickLog';
 import TodayStatus from '../components/TodayStatus';
 import Reminders from '../components/Reminders';
-import { differenceInDays, addDays, format, startOfMonth, endOfMonth, isSameMonth } from 'date-fns';
+import { getToken, getUser, logout, goToLogin, shecareApi, Summary } from '../lib/api';
 
 const Index = () => {
-  const [periodStartDate, setPeriodStartDate] = useState(null);
-  const [previousPeriodDate, setPreviousPeriodDate] = useState(null);
+  const authed = !!getToken();
+  const user = getUser();
+
+  const [summary, setSummary] = useState<Summary | null>(null);
+  const [loading, setLoading] = useState(true);
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [logs, setLogs] = useState([]);
-  const [reminders, setReminders] = useState([]);
+  const [reminders, setReminders] = useState<any[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('shecycle_reminders') || '[]');
+    } catch {
+      return [];
+    }
+  });
 
-  // Load data from localStorage on mount
+  const load = async () => {
+    try {
+      const s = await shecareApi.summary();
+      setSummary(s);
+    } catch {
+      /* 401 redirects to the hub inside the api helper */
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const savedPeriodDate = localStorage.getItem('periodStartDate');
-    const savedPreviousDate = localStorage.getItem('previousPeriodDate');
-    const savedLogs = localStorage.getItem('periodLogs');
-    const savedReminders = localStorage.getItem('reminders');
-
-    if (savedPeriodDate) {
-      setPeriodStartDate(new Date(savedPeriodDate));
+    if (!authed) {
+      setLoading(false);
+      return;
     }
-    if (savedPreviousDate) {
-      setPreviousPeriodDate(new Date(savedPreviousDate));
+    load();
+    // Ask for notification permission so we can alert when a period is due.
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
     }
-    if (savedLogs) {
-      setLogs(JSON.parse(savedLogs));
-    }
-    if (savedReminders) {
-      setReminders(JSON.parse(savedReminders));
-    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Save data to localStorage whenever state changes
+  // Fire an OS notification for each data-driven alert (when allowed).
   useEffect(() => {
-    if (periodStartDate) {
-      localStorage.setItem('periodStartDate', periodStartDate.toISOString());
+    if (summary?.notifications?.length && 'Notification' in window && Notification.permission === 'granted') {
+      summary.notifications.forEach((n) =>
+        new Notification(`SheCycle+ · ${n.title}`, { body: n.message })
+      );
     }
-  }, [periodStartDate]);
+  }, [summary]);
 
-  useEffect(() => {
-    if (previousPeriodDate) {
-      localStorage.setItem('previousPeriodDate', previousPeriodDate.toISOString());
+  if (!authed) {
+    return (
+      <div className="min-h-screen bg-[#fefaf6] flex items-center justify-center p-6">
+        <div className="bg-[#fff7f2] rounded-2xl p-8 shadow-sm border border-orange-100 text-center max-w-md">
+          <div className="w-16 h-16 bg-pink-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <LogIn className="w-8 h-8 text-pink-500" />
+          </div>
+          <h2 className="text-2xl font-bold text-[#5c3b28] mb-2">Please sign in</h2>
+          <p className="text-[#9b7d65] mb-6">
+            Sign in to your Saarthi account to track your cycle, moods and reminders securely.
+          </p>
+          <button
+            onClick={goToLogin}
+            className="bg-[#9b5f42] hover:bg-[#8b4f32] text-white px-6 py-3 rounded-lg font-medium"
+          >
+            Go to Saarthi login
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const periodStartDate = summary?.lastPeriodStart ? new Date(summary.lastPeriodStart) : null;
+  const previousPeriodDate = null; // calendar highlights from the latest start
+  const nextPeriodDate = summary?.nextPeriodDate ? new Date(summary.nextPeriodDate) : null;
+  const currentDay = summary?.currentCycleDay ?? 0;
+  const daysUntilNext = summary?.daysUntilNext ?? 0;
+  const cycleHealth = summary?.regularityScore ?? 0;
+  const currentPhase = summary?.phase ?? 'Unknown';
+  const cycleLength = summary?.avgCycleLength ?? 28;
+  const avgPeriodLength = summary?.avgPeriodLength ?? 5;
+  const periodsLogged = summary?.totalPeriodsLogged ?? 0;
+
+  // Logging a period start (from the calendar or Quick Log).
+  const handleDateSelect = async (date: Date) => {
+    try {
+      await shecareApi.logPeriod({ startDate: new Date(date).toISOString() });
+      await load();
+    } catch {
+      /* ignore */
     }
-  }, [previousPeriodDate]);
-
-  useEffect(() => {
-    localStorage.setItem('periodLogs', JSON.stringify(logs));
-  }, [logs]);
-
-  useEffect(() => {
-    localStorage.setItem('reminders', JSON.stringify(reminders));
-  }, [reminders]);
-
-  const getCurrentPhase = () => {
-    if (!periodStartDate) return 'Unknown';
-    const today = new Date();
-    const daysSinceStart = differenceInDays(today, periodStartDate);
-
-    if (daysSinceStart >= 0 && daysSinceStart <= 6) return 'Menstrual';
-    if (daysSinceStart >= 7 && daysSinceStart <= 13) return 'Follicular';
-    if (daysSinceStart === 14) return 'Ovulation';
-    if (daysSinceStart >= 15 && daysSinceStart <= 28) return 'Luteal';
-  
-    const cycleDay = (daysSinceStart % 28) + 1;
-
-    if (cycleDay >= 1 && cycleDay <= 7) return 'Menstrual';
-    if (cycleDay >= 8 && cycleDay <= 13) return 'Follicular';
-    if (cycleDay === 14) return 'Ovulation';
-    if (cycleDay >= 15 && cycleDay <= 28) return 'Luteal';
-
-    return 'Follicular'; // Default fallback
   };
 
-  const getCycleDay = () => {
-    if (!periodStartDate) return 0;
-    const today = new Date();
-     return differenceInDays(today, periodStartDate) + 1;
-    const daysSinceStart = differenceInDays(today, periodStartDate);
-    return (daysSinceStart % 28) + 1;
-  };
-
-  const getDaysUntilNext = () => {
-    if (!periodStartDate) return 0;
-    const nextPeriod = addDays(periodStartDate, 28);
-    const today = new Date();
-    const daysUntil = differenceInDays(nextPeriod, today);
-    return daysUntil > 0 ? daysUntil : 0;
-  };
-
-  const getCycleHealth = () => {
-    const regularityScore = logs.length > 3 ? 92 : 60;
-    return regularityScore;
-  };
-
-  const handleDateSelect = (date) => {
-    // If selecting a date in a different month, save current period as previous
-    if (periodStartDate && !isSameMonth(date, periodStartDate)) {
-      setPreviousPeriodDate(periodStartDate);
+  // Logging a mood (Quick Log / Today status).
+  const handleLog = async (logData: any) => {
+    if (!logData?.mood) return;
+    try {
+      await shecareApi.logMood({
+        date: new Date(logData.date || Date.now()).toISOString(),
+        mood: logData.mood,
+        temperature: logData.temperature,
+      });
+      await load();
+    } catch {
+      /* ignore */
     }
-    
-    setPeriodStartDate(date);
   };
 
-  const addLog = (logData) => {
-    const newLog = {
-      id: Date.now(),
-      date: new Date().toISOString(),
-      ...logData
-    };
-    setLogs([...logs, newLog]);
-  };
-
-  const addReminder = (reminderData) => {
-    const newReminder = {
-      id: Date.now(),
-      ...reminderData
-    };
-    setReminders([...reminders, newReminder]);
+  const addReminder = (reminderData: any) => {
+    const next = [...reminders, { id: Date.now(), ...reminderData }];
+    setReminders(next);
+    localStorage.setItem('shecycle_reminders', JSON.stringify(next));
   };
 
   const scrollToCalendar = () => {
-    document.getElementById('calendar-section')?.scrollIntoView({ 
-      behavior: 'smooth' 
-    });
+    document.getElementById('calendar-section')?.scrollIntoView({ behavior: 'smooth' });
   };
 
   return (
     <div className="min-h-screen bg-[#fefaf6]">
-      <Navbar onCalendarClick={scrollToCalendar} />
-      
+      <Navbar
+        onCalendarClick={scrollToCalendar}
+        userName={user?.name}
+        onLogout={() => {
+          logout();
+          goToLogin();
+        }}
+      />
+
       <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
-        <WelcomeSection />
-        
+        <WelcomeSection userName={user?.name} />
+
+        {/* Data-driven notifications */}
+        {summary?.notifications?.length ? (
+          <div className="space-y-2">
+            {summary.notifications.map((n, i) => (
+              <div key={i} className="flex items-start gap-3 bg-[#fff2ea] border border-orange-200 rounded-xl px-4 py-3">
+                <Bell className="w-5 h-5 text-[#9b5f42] mt-0.5" />
+                <div>
+                  <div className="font-semibold text-[#5c3b28]">{n.title}</div>
+                  <div className="text-sm text-[#9b7d65]">{n.message}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        {loading ? (
+          <div className="text-center text-[#9b7d65] py-16">Loading your cycle…</div>
+        ) : !summary?.hasData ? (
+          <div className="bg-[#fff7f2] rounded-2xl p-8 border border-orange-100 text-center">
+            <h3 className="text-xl font-semibold text-[#5c3b28] mb-2">Let’s start tracking 🌸</h3>
+            <p className="text-[#9b7d65]">
+              Log your most recent period below to see predictions, cycle progress and insights.
+            </p>
+          </div>
+        ) : null}
+
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
           <div className="xl:col-span-2 space-y-6">
-            <PeriodTracker 
-              currentDay={getCycleDay()}
-              daysUntilNext={getDaysUntilNext()}
-              cycleHealth={getCycleHealth()}
-              currentPhase={getCurrentPhase()}
+            <PeriodTracker
+              currentDay={currentDay}
+              daysUntilNext={daysUntilNext}
+              cycleHealth={cycleHealth}
+              currentPhase={currentPhase}
               periodStartDate={periodStartDate}
+              cycleLength={cycleLength}
             />
-            
+
             <div id="calendar-section">
-              <CycleCalendar 
+              <CycleCalendar
                 periodStartDate={periodStartDate}
                 previousPeriodDate={previousPeriodDate}
                 onDateSelect={handleDateSelect}
                 currentMonth={currentMonth}
                 onMonthChange={setCurrentMonth}
+                cycleLength={cycleLength}
               />
             </div>
-            
-            <CycleStatistics 
-              cycleHealth={getCycleHealth()}
-              periodsLogged={logs.length}
-              currentPhase={getCurrentPhase()}
+
+            <CycleStatistics
+              cycleHealth={cycleHealth}
+              periodsLogged={periodsLogged}
+              currentPhase={currentPhase}
+              avgCycleLength={cycleLength}
+              avgPeriodLength={avgPeriodLength}
             />
-            
-            <CycleTips currentPhase={getCurrentPhase()} />
+
+            <CycleTips currentPhase={currentPhase} />
           </div>
-          
+
           <div className="space-y-6">
-            <QuickLog 
-              onLog={addLog}
-              onDateSelect={handleDateSelect}
-              cycleHealth={getCycleHealth()}
+            <QuickLog onLog={handleLog} onDateSelect={handleDateSelect} cycleHealth={cycleHealth} />
+
+            <TodayStatus
+              currentDay={currentDay}
+              cycleHealth={cycleHealth}
+              currentPhase={currentPhase}
+              onAddNote={handleLog}
             />
-            
-            <TodayStatus 
-              currentDay={getCycleDay()}
-              cycleHealth={getCycleHealth()}
-              currentPhase={getCurrentPhase()}
-              onAddNote={addLog}
-            />
-            
-            <Reminders 
-              reminders={reminders}
-              onAddReminder={addReminder}
-              nextPeriodDate={periodStartDate ? addDays(periodStartDate, 28) : null}
-            />
+
+            <Reminders reminders={reminders} onAddReminder={addReminder} nextPeriodDate={nextPeriodDate} />
           </div>
         </div>
       </div>
