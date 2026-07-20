@@ -34,11 +34,11 @@ const DoctorCard = ({ doctor, onDirections }: DoctorCardProps) => {
   const [bookingType, setBookingType] = useState<"call" | "video" | "appointment">("appointment");
   const [avatarBroken, setAvatarBroken] = useState(false);
 
-  // Cartoon avatar generated from the doctor's name (free, no key). Falls back
-  // to an emoji avatar if the image can't load, so the card never breaks.
-  const avatarUrl = `https://api.dicebear.com/9.x/avataaars/svg?seed=${encodeURIComponent(
+  // Elegant illustrated avatar generated from the doctor's name (free, no key).
+  // Falls back to an emoji avatar if the image can't load, so cards never break.
+  const avatarUrl = `https://api.dicebear.com/9.x/lorelei/svg?seed=${encodeURIComponent(
     doctor.name
-  )}&backgroundColor=ffd5dc,ffdfbf,d1d4f9,c0aede,b6e3f4`;
+  )}&backgroundColor=ffd5dc,ffdfbf,d1d4f9,c0aede,b6e3f4,ffd5b3,c9f0d8&backgroundType=gradientLinear&radius=50`;
 
   const handleCall = () => {
     setIsCallModalOpen(true);
