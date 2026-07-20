@@ -75,7 +75,7 @@ async function geoapify(lat: number, lng: number, radiusM: number): Promise<Doct
       };
     })
     .filter((d: DoctorResult | null): d is DoctorResult => !!d)
-    .sort((a, b) => Number(b.isGyn) - Number(a.isGyn) || a.distanceKm - b.distanceKm)
+    .sort((a, b) => a.distanceKm - b.distanceKm)
     .slice(0, 60);
 }
 
@@ -178,7 +178,7 @@ out center 80;`;
       seen.add(key);
       return true;
     })
-    .sort((a, b) => Number(b.isGyn) - Number(a.isGyn) || a.distanceKm - b.distanceKm)
+    .sort((a, b) => a.distanceKm - b.distanceKm)
     .slice(0, 60);
 }
 

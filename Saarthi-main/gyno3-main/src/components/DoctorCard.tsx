@@ -32,16 +32,13 @@ const DoctorCard = ({ doctor, onDirections }: DoctorCardProps) => {
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [isCallModalOpen, setIsCallModalOpen] = useState(false);
   const [bookingType, setBookingType] = useState<"call" | "video" | "appointment">("appointment");
+  const [avatarBroken, setAvatarBroken] = useState(false);
 
-  // Map doctor IDs to the uploaded images
-  const doctorImages = {
-    1: "/lovable-uploads/41f02828-87b7-45bb-9b25-97302feddb2f.png",
-    2: "/lovable-uploads/e38ca779-419c-41f2-b04d-993e341151c1.png",
-    3: "/lovable-uploads/853236d1-df52-4484-8cdb-2e7de71513b2.png",
-    4: "/lovable-uploads/a9646c7b-0a9b-42b9-9a64-457a680878ec.png",
-    5: "/lovable-uploads/41f02828-87b7-45bb-9b25-97302feddb2f.png",
-    6: "/lovable-uploads/e38ca779-419c-41f2-b04d-993e341151c1.png"
-  };
+  // Cartoon avatar generated from the doctor's name (free, no key). Falls back
+  // to an emoji avatar if the image can't load, so the card never breaks.
+  const avatarUrl = `https://api.dicebear.com/9.x/avataaars/svg?seed=${encodeURIComponent(
+    doctor.name
+  )}&backgroundColor=ffd5dc,ffdfbf,d1d4f9,c0aede,b6e3f4`;
 
   const handleCall = () => {
     setIsCallModalOpen(true);
@@ -57,13 +54,20 @@ const DoctorCard = ({ doctor, onDirections }: DoctorCardProps) => {
       <Card className="bg-[#fff7f2] border-[#fde0e0] hover:shadow-lg transition-all duration-300 hover:scale-105">
         <CardContent className="p-6">
           <div className="flex space-x-4">
-            {/* Doctor Image */}
+            {/* Doctor Avatar */}
             <div className="flex-shrink-0">
-              <img 
-                src={doctorImages[doctor.id as keyof typeof doctorImages] || doctorImages[1]} 
-                alt={doctor.name}
-                className="w-20 h-20 rounded-full object-cover border-2 border-[#fde0e0]"
-              />
+              {avatarBroken ? (
+                <div className="w-20 h-20 rounded-full border-2 border-[#fde0e0] bg-gradient-to-br from-pink-200 to-orange-200 flex items-center justify-center text-4xl">
+                  👩‍⚕️
+                </div>
+              ) : (
+                <img
+                  src={avatarUrl}
+                  alt={doctor.name}
+                  onError={() => setAvatarBroken(true)}
+                  className="w-20 h-20 rounded-full object-cover border-2 border-[#fde0e0] bg-white"
+                />
+              )}
             </div>
 
             {/* Doctor Info */}

@@ -28,18 +28,28 @@ const userIcon = new L.DivIcon({
   popupAnchor: [0, -30],
 });
 
+// Green destination pin for the doctor you're navigating to.
+const destIcon = new L.DivIcon({
+  className: "saarthi-dest-pin",
+  html: `<div style="font-size:34px;line-height:1;filter:drop-shadow(0 2px 3px rgba(0,0,0,.35))">🏥</div>`,
+  iconSize: [34, 34],
+  iconAnchor: [17, 32],
+  popupAnchor: [0, -30],
+});
+
 const API_BASE_URL = "/api/gyno";
 const INDIA_CENTER: [number, number] = [22.9734, 78.6569];
 
-// Fixes the classic blank/grey Leaflet map and recenters/fits on change.
+// Fixes the classic blank/grey Leaflet map and animates to the route/location.
 const MapController = ({ center, zoom, bounds }: { center: [number, number]; zoom: number; bounds?: [number, number][] }) => {
   const map = useMap();
   useEffect(() => {
     setTimeout(() => map.invalidateSize(), 0);
     if (bounds && bounds.length >= 2) {
-      map.fitBounds(bounds as any, { padding: [50, 50] });
+      // Animated "fly" to the route, Google-Maps style.
+      map.flyToBounds(bounds as any, { padding: [60, 60], duration: 1.2 });
     } else {
-      map.setView(center, zoom);
+      map.flyTo(center, zoom, { duration: 1.0 });
     }
   }, [center[0], center[1], zoom, JSON.stringify(bounds)]); // eslint-disable-line
   return null;
@@ -51,6 +61,7 @@ const NearbyDoctors = () => {
   const [doctors, setDoctors] = useState<any[]>([]);
   const [route, setRoute] = useState<[number, number][]>([]);
   const [routeInfo, setRouteInfo] = useState<{ name: string; km: number; mins: number } | null>(null);
+  const [destination, setDestination] = useState<{ lat: number; lng: number; name: string } | null>(null);
   const { toast } = useToast();
 
   const fetchDoctors = async (coords: { lat: number; lng: number }) => {
@@ -118,8 +129,9 @@ const NearbyDoctors = () => {
       if (!r) throw new Error("No route found");
       const coords: [number, number][] = r.geometry.coordinates.map((c: number[]) => [c[1], c[0]]);
       setRoute(coords);
+      setDestination({ lat: doc.lat, lng: doc.lng, name: doc.name });
       setRouteInfo({ name: doc.name, km: Math.round((r.distance / 1000) * 10) / 10, mins: Math.round(r.duration / 60) });
-      toast({ title: `Route to ${doc.name}`, description: "Directions drawn on the map below." });
+      toast({ title: `Route to ${doc.name}`, description: "Navigating on the map…" });
       document.getElementById("gyno-map")?.scrollIntoView({ behavior: "smooth" });
     } catch (e: any) {
       toast({ title: "Could not fetch directions", description: e.message, variant: "destructive" });
@@ -220,8 +232,15 @@ const NearbyDoctors = () => {
               </Marker>
             )}
 
+            {destination && (
+              <Marker position={[destination.lat, destination.lng]} icon={destIcon}>
+                <Popup>{destination.name}</Popup>
+              </Marker>
+            )}
+
             {doctors
               .filter((d: any) => typeof d.lat === "number" && typeof d.lng === "number")
+              .filter((d: any) => !(destination && d.lat === destination.lat && d.lng === destination.lng))
               .map((doc: any) => (
                 <Marker key={doc.id} position={[doc.lat, doc.lng]} icon={doctorIcon}>
                   <Popup>
