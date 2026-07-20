@@ -211,11 +211,22 @@ const NearbyDoctors = () => {
           {visibleCount < doctors.length && (
             <div className="flex justify-center mt-6">
               <Button
-                onClick={() => setVisibleCount((c) => c + 6)}
+                onClick={() => setVisibleCount(doctors.length)}
                 variant="outline"
                 className="border-[#e03131] text-[#e03131] hover:bg-[#e03131] hover:text-white rounded-full px-8"
               >
                 Show more ({doctors.length - visibleCount} more)
+              </Button>
+            </div>
+          )}
+          {visibleCount >= doctors.length && doctors.length > 6 && (
+            <div className="flex justify-center mt-6">
+              <Button
+                onClick={() => setVisibleCount(6)}
+                variant="ghost"
+                className="text-[#5c3b28]/70 rounded-full px-8"
+              >
+                Show less
               </Button>
             </div>
           )}
