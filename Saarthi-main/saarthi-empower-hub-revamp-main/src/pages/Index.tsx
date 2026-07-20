@@ -1,16 +1,29 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ArrowRight, Star, Users, Shield, Zap, Heart, FileText, Calendar, Stethoscope, Award, Activity, UserCheck, Database, Building2, Syringe, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import Header from '@/components/Header';
 import Dashboard from '@/components/Dashboard';
 import FeatureCard from '@/components/FeatureCard';
+import AuthModal from '@/components/AuthModal';
 import heroWomen from '@/assets/hero-women.jpg';
+import { getSession, logout } from '@/lib/auth';
 
 const Index = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userName, setUserName] = useState("Priya");
+  const [userName, setUserName] = useState("");
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
+
+  // Restore an existing session on load so a page refresh keeps the user logged in.
+  useEffect(() => {
+    const session = getSession();
+    if (session) {
+      setIsLoggedIn(true);
+      setUserName(session.name);
+    }
+  }, []);
 
   const handleLogin = (name: string) => {
     setIsLoggedIn(true);
@@ -18,20 +31,27 @@ const Index = () => {
   };
 
   const handleLogout = () => {
+    logout();
     setIsLoggedIn(false);
     setUserName("");
+  };
+
+  const requestAuth = (mode: 'login' | 'signup' = 'login') => {
+    setAuthMode(mode);
+    setIsAuthOpen(true);
   };
 
   // If logged in, show dashboard
   if (isLoggedIn) {
     return (
       <>
-        <Header 
-          isLoggedIn={isLoggedIn} 
+        <Header
+          isLoggedIn={isLoggedIn}
           userDashboard={true}
           userName={userName}
-          onLogin={handleLogin} 
-          onLogout={handleLogout} 
+          onLogin={handleLogin}
+          onLogout={handleLogout}
+          onRequestAuth={requestAuth}
         />
         <Dashboard userName={userName} />
       </>
@@ -123,11 +143,12 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header 
-        isLoggedIn={isLoggedIn} 
+      <Header
+        isLoggedIn={isLoggedIn}
         userName={userName}
-        onLogin={handleLogin} 
-        onLogout={handleLogout} 
+        onLogin={handleLogin}
+        onLogout={handleLogout}
+        onRequestAuth={requestAuth}
       />
 
       {/* Hero Section */}
@@ -153,7 +174,7 @@ const Index = () => {
               </p>
               
               <div className="flex flex-col sm:flex-row gap-4">
-                <Button onClick={() => handleLogin("Priya")} className="btn-hero text-lg px-8 py-4">
+                <Button onClick={() => requestAuth('signup')} className="btn-hero text-lg px-8 py-4">
                   Join Saarthi Today
                   <ArrowRight className="ml-2 w-5 h-5" />
                 </Button>
@@ -241,7 +262,7 @@ const Index = () => {
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button onClick={() => handleLogin("Priya")} className="btn-hero text-lg px-8 py-4">
+            <Button onClick={() => requestAuth('signup')} className="btn-hero text-lg px-8 py-4">
               Get Started Today
               <ArrowRight className="ml-2 w-5 h-5" />
             </Button>
@@ -313,6 +334,13 @@ const Index = () => {
           </div>
         </div>
       </footer>
+
+      <AuthModal
+        isOpen={isAuthOpen}
+        onClose={() => setIsAuthOpen(false)}
+        onLogin={handleLogin}
+        defaultMode={authMode}
+      />
     </div>
   );
 };

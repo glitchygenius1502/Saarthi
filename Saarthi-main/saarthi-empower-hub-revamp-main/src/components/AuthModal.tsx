@@ -1,9 +1,10 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import SaarthiLogo from './SaarthiLogo';
+import { login, signup } from '@/lib/auth';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -27,13 +28,14 @@ const AuthModal = ({ isOpen, onClose, onLogin, defaultMode = 'login' }: AuthModa
     termsAccepted: false
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Reset form mode when modal opens with different default
-  useState(() => {
+  // Reset form mode when modal opens with a different default
+  useEffect(() => {
     if (isOpen) {
       setIsLogin(defaultMode === 'login');
     }
-  });
+  }, [isOpen, defaultMode]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
@@ -84,12 +86,35 @@ const AuthModal = ({ isOpen, onClose, onLogin, defaultMode = 'login' }: AuthModa
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (validateForm()) {
-      // Use the exact name entered, with proper capitalization preserved
-      const userName = formData.name.trim() || 'User';
-      onLogin(userName);
-      onClose();
+    if (!validateForm()) return;
+
+    setIsSubmitting(true);
+
+    const result = isLogin
+      ? login(formData.email, formData.password)
+      : signup({
+          name: formData.name,
+          email: formData.email,
+          password: formData.password,
+          phone: formData.phone,
+          age: formData.age,
+          city: formData.city,
+        });
+
+    setIsSubmitting(false);
+
+    if (!result.ok) {
+      // Attach the error to the relevant field where possible, plus a general banner.
+      const fieldErrors: Record<string, string> = { form: result.error };
+      if (/email/i.test(result.error)) fieldErrors.email = result.error;
+      if (/password/i.test(result.error)) fieldErrors.password = result.error;
+      setErrors(fieldErrors);
+      return;
     }
+
+    onLogin(result.user.name);
+    resetForm();
+    onClose();
   };
 
   const resetForm = () => {
@@ -322,8 +347,22 @@ const AuthModal = ({ isOpen, onClose, onLogin, defaultMode = 'login' }: AuthModa
               </div>
             )}
 
-            <Button type="submit" className="btn-hero w-full py-3 text-lg hover:scale-105 transition-transform duration-300 animate-fade-in">
-              {isLogin ? 'Sign In' : 'Create Account'}
+            {errors.form && (
+              <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-600 animate-fade-in">
+                {errors.form}
+              </div>
+            )}
+
+            <Button
+              type="submit"
+              disabled={isSubmitting}
+              className="btn-hero w-full py-3 text-lg hover:scale-105 transition-transform duration-300 animate-fade-in disabled:opacity-70 disabled:hover:scale-100"
+            >
+              {isSubmitting
+                ? 'Please wait…'
+                : isLogin
+                  ? 'Sign In'
+                  : 'Create Account'}
             </Button>
           </form>
 

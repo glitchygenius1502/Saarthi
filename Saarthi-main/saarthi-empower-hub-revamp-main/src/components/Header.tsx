@@ -4,7 +4,6 @@ import { Menu, X, ChevronDown, User, Settings, LogOut, ArrowLeft, Home } from 'l
 import { Button } from '@/components/ui/button';
 import ExploreModal from './ExploreModal';
 import AboutModal from './AboutModal';
-import AuthModal from './AuthModal';
 import HelpPopup from './HelpPopup';
 import SaarthiLogo from './SaarthiLogo';
 
@@ -14,14 +13,13 @@ interface HeaderProps {
   userName?: string;
   onLogin: (name: string) => void;
   onLogout: () => void;
+  onRequestAuth: (mode?: 'login' | 'signup') => void;
 }
 
-const Header = ({ isLoggedIn, userDashboard = false, userName = 'User', onLogin, onLogout }: HeaderProps) => {
+const Header = ({ isLoggedIn, userDashboard = false, userName = 'User', onLogin, onLogout, onRequestAuth }: HeaderProps) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isExploreOpen, setIsExploreOpen] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
-  const [isAuthOpen, setIsAuthOpen] = useState(false);
-  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [settingsDropdownOpen, setSettingsDropdownOpen] = useState(false);
@@ -30,14 +28,12 @@ const Header = ({ isLoggedIn, userDashboard = false, userName = 'User', onLogin,
     if (isLoggedIn) {
       setUserDropdownOpen(!userDropdownOpen);
     } else {
-      setAuthMode(mode);
-      setIsAuthOpen(true);
+      onRequestAuth(mode);
     }
   };
 
   const handleSignUpClick = () => {
-    setAuthMode('signup');
-    setIsAuthOpen(true);
+    onRequestAuth('signup');
   };
 
   const handleHomeClick = () => {
@@ -55,16 +51,11 @@ const Header = ({ isLoggedIn, userDashboard = false, userName = 'User', onLogin,
   };
 
   const handleExploreLogin = () => {
-    onLogin("User"); // Default name for explore modal login
-  };
-
-  const handleAuthLogin = (name: string) => {
-    onLogin(name);
+    onRequestAuth('login');
   };
 
   const handleAboutSignUp = () => {
-    setAuthMode('signup');
-    setIsAuthOpen(true);
+    onRequestAuth('signup');
   };
 
   return (
@@ -241,7 +232,6 @@ const Header = ({ isLoggedIn, userDashboard = false, userName = 'User', onLogin,
       {/* Modals */}
       <ExploreModal isOpen={isExploreOpen} onClose={() => setIsExploreOpen(false)} onLogin={handleExploreLogin} />
       <AboutModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} onOpenAuth={handleAboutSignUp} />
-      <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} onLogin={handleAuthLogin} defaultMode={authMode} />
       <HelpPopup isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
     </>
   );
