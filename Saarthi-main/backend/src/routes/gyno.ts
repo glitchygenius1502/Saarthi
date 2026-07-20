@@ -1,47 +1,169 @@
 import { Router } from 'express';
-import Doctor from '../models/Doctor';
 
 const router = Router();
 
-// GET /api/gyno/doctors?lat=..&lng=..&radius=50
-// Returns gynecologists nearest to the given coordinates (with distance),
-// or a general list if no coordinates are provided. Public (browsing).
+// Live gynecologist search — no seeding, no hardcoded doctors.
+// Primary source: Google Places (real data + ratings) when GOOGLE_MAPS_API_KEY
+// is configured. Fallback: OpenStreetMap Overpass (keyless) otherwise.
+
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+interface DoctorResult {
+  id: string;
+  name: string;
+  clinic: string;
+  speciality: string;
+  isGyn: boolean;
+  city: string;
+  address: string;
+  phone: string;
+  timing: string;
+  website: string;
+  rating?: number;
+  ratingCount?: number;
+  lat: number;
+  lng: number;
+  distanceKm: number;
+}
+
+async function googlePlaces(lat: number, lng: number, radiusM: number): Promise<DoctorResult[]> {
+  const key = process.env.GOOGLE_MAPS_API_KEY as string;
+  const resp = await fetch('https://places.googleapis.com/v1/places:searchText', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Goog-Api-Key': key,
+      'X-Goog-FieldMask':
+        'places.id,places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount,places.nationalPhoneNumber,places.regularOpeningHours.weekdayDescriptions,places.websiteUri',
+    },
+    body: JSON.stringify({
+      textQuery: 'gynecologist',
+      locationBias: { circle: { center: { latitude: lat, longitude: lng }, radius: Math.min(radiusM, 50000) } },
+      maxResultCount: 20,
+    }),
+  });
+  if (!resp.ok) throw new Error(`Google Places ${resp.status}: ${await resp.text()}`);
+  const json: any = await resp.json();
+  return (json.places || [])
+    .map((p: any): DoctorResult | null => {
+      const plat = p.location?.latitude;
+      const plng = p.location?.longitude;
+      if (plat == null || plng == null) return null;
+      const name = p.displayName?.text || 'Gynaecologist';
+      return {
+        id: p.id,
+        name,
+        clinic: name,
+        speciality: 'Obstetrician & Gynaecologist',
+        isGyn: true,
+        city: '',
+        address: p.formattedAddress || '',
+        phone: p.nationalPhoneNumber || '',
+        timing: p.regularOpeningHours?.weekdayDescriptions?.[new Date().getDay() === 0 ? 6 : new Date().getDay() - 1] || '',
+        website: p.websiteUri || '',
+        rating: p.rating,
+        ratingCount: p.userRatingCount,
+        lat: plat,
+        lng: plng,
+        distanceKm: Math.round(haversineKm(lat, lng, plat, plng) * 10) / 10,
+      };
+    })
+    .filter(Boolean)
+    .sort((a: DoctorResult, b: DoctorResult) => a.distanceKm - b.distanceKm);
+}
+
+async function overpass(lat: number, lng: number, radiusM: number): Promise<DoctorResult[]> {
+  const q = `[out:json][timeout:20];
+(
+  nwr(around:${radiusM},${lat},${lng})["healthcare"="gynaecology"];
+  nwr(around:${radiusM},${lat},${lng})["healthcare:speciality"~"gyn",i];
+  nwr(around:${radiusM},${lat},${lng})["amenity"="doctors"]["name"];
+  nwr(around:${radiusM},${lat},${lng})["amenity"="clinic"]["name"];
+  nwr(around:${radiusM},${lat},${lng})["amenity"="hospital"]["name"];
+);
+out center 80;`;
+  const resp = await fetch('https://overpass-api.de/api/interpreter', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Accept: 'application/json',
+      'User-Agent': 'Saarthi-Health/1.0 (women health platform)',
+    },
+    body: 'data=' + encodeURIComponent(q),
+  });
+  if (!resp.ok) throw new Error(`Overpass ${resp.status}`);
+  const json: any = await resp.json();
+  const seen = new Set<string>();
+  return (json.elements || [])
+    .map((el: any): DoctorResult | null => {
+      const dLat = el.lat ?? el.center?.lat;
+      const dLng = el.lon ?? el.center?.lon;
+      const tags = el.tags || {};
+      if (dLat == null || dLng == null || !tags.name) return null;
+      const spec = (tags['healthcare:speciality'] || '').toLowerCase();
+      const isGyn = tags.healthcare === 'gynaecology' || spec.includes('gyn') || spec.includes('obstet');
+      return {
+        id: `${el.type}/${el.id}`,
+        name: tags.name,
+        clinic: tags.name,
+        speciality: isGyn ? 'Obstetrician & Gynaecologist' : tags.amenity === 'hospital' ? 'Hospital' : 'Clinic',
+        isGyn,
+        city: tags['addr:city'] || '',
+        address: tags['addr:full'] || [tags['addr:street'], tags['addr:city']].filter(Boolean).join(', '),
+        phone: tags.phone || tags['contact:phone'] || '',
+        timing: tags.opening_hours || '',
+        website: tags.website || tags['contact:website'] || '',
+        lat: dLat,
+        lng: dLng,
+        distanceKm: Math.round(haversineKm(lat, lng, dLat, dLng) * 10) / 10,
+      };
+    })
+    .filter((d: DoctorResult | null): d is DoctorResult => {
+      if (!d) return false;
+      const key = d.name + d.lat;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .sort((a, b) => Number(b.isGyn) - Number(a.isGyn) || a.distanceKm - b.distanceKm)
+    .slice(0, 60);
+}
+
+// GET /api/gyno/doctors?lat=..&lng=..&radius=8
 router.get('/doctors', async (req, res) => {
   const lat = parseFloat(String(req.query.lat));
   const lng = parseFloat(String(req.query.lng));
-  const radiusKm = req.query.radius ? parseFloat(String(req.query.radius)) : 100;
-  const limit = req.query.limit ? Math.min(50, parseInt(String(req.query.limit), 10)) : 30;
-
-  if (!Number.isNaN(lat) && !Number.isNaN(lng)) {
-    const doctors = await Doctor.aggregate([
-      {
-        $geoNear: {
-          near: { type: 'Point', coordinates: [lng, lat] },
-          distanceField: 'distanceMeters',
-          spherical: true,
-          maxDistance: radiusKm * 1000,
-        },
-      },
-      { $limit: limit },
-      {
-        $addFields: {
-          distanceKm: { $round: [{ $divide: ['$distanceMeters', 1000] }, 1] },
-          lat: { $arrayElemAt: ['$location.coordinates', 1] },
-          lng: { $arrayElemAt: ['$location.coordinates', 0] },
-        },
-      },
-    ]);
-    return res.json({ doctors, count: doctors.length, near: { lat, lng }, radiusKm });
+  if (Number.isNaN(lat) || Number.isNaN(lng)) {
+    return res.status(400).json({ error: 'Share your location to find gynecologists near you.', doctors: [] });
   }
+  const radiusKm = Math.min(50, req.query.radius ? parseFloat(String(req.query.radius)) : 10);
+  const radiusM = Math.round(radiusKm * 1000);
+  const source = process.env.GOOGLE_MAPS_API_KEY ? 'google' : 'osm';
 
-  // No coordinates: return a general list.
-  const docs = await Doctor.find().limit(limit).lean();
-  const doctors = docs.map((d: any) => ({
-    ...d,
-    lat: d.location?.coordinates?.[1],
-    lng: d.location?.coordinates?.[0],
-  }));
-  return res.json({ doctors, count: doctors.length });
+  try {
+    const doctors = source === 'google' ? await googlePlaces(lat, lng, radiusM) : await overpass(lat, lng, radiusM);
+    return res.json({ doctors, count: doctors.length, source, near: { lat, lng }, radiusKm });
+  } catch (err: any) {
+    console.error('[gyno] search error', err?.message || err);
+    // If Google fails for any reason, try the keyless fallback before giving up.
+    if (source === 'google') {
+      try {
+        const doctors = await overpass(lat, lng, radiusM);
+        return res.json({ doctors, count: doctors.length, source: 'osm-fallback', near: { lat, lng }, radiusKm });
+      } catch {
+        /* fall through */
+      }
+    }
+    return res.status(502).json({ error: 'Could not reach the live directory right now. Please try again.', doctors: [] });
+  }
 });
 
 export default router;

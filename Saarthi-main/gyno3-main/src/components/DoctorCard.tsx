@@ -17,6 +17,9 @@ interface Doctor {
   image: string;
   phone: string;
   distanceKm?: number;
+  rating?: number;
+  ratingCount?: number;
+  website?: string;
 }
 
 interface DoctorCardProps {
@@ -67,34 +70,44 @@ const DoctorCard = ({ doctor, onDirections }: DoctorCardProps) => {
             <div className="flex-1 space-y-2">
               <div>
                 <h3 className="font-semibold text-[#5c3b28] text-lg">{doctor.name}</h3>
-                <div className="flex items-center space-x-2 mb-1">
-                  <span className="text-yellow-500">⭐</span>
-                  <span className="text-sm font-medium text-[#5c3b28]">{doctor.rating}</span>
+                <div className="flex items-center flex-wrap gap-2 mb-1">
+                  {typeof doctor.rating === "number" && (
+                    <span className="text-sm font-medium text-[#5c3b28]">
+                      <span className="text-yellow-500">⭐</span> {doctor.rating}
+                      {doctor.ratingCount ? <span className="text-[#5c3b28]/60"> ({doctor.ratingCount})</span> : null}
+                    </span>
+                  )}
                   {typeof doctor.distanceKm === "number" && (
                     <span className="text-xs bg-[#e7f5ea] text-[#2f9e44] px-2 py-0.5 rounded-full">
-                      {doctor.distanceKm} km away
+                      📍 {doctor.distanceKm} km away
                     </span>
                   )}
                 </div>
               </div>
 
               <div className="space-y-1 text-sm text-[#5c3b28]/80">
-                <div className="flex items-center space-x-2">
-                  <span>📍</span>
-                  <span>{doctor.clinic}</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <span>🏠</span>
-                  <span>{doctor.address}</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <span>⏰</span>
-                  <span>{doctor.timings}</span>
-                </div>
+                {doctor.address && (
+                  <div className="flex items-start space-x-2">
+                    <span>🏠</span>
+                    <span>{doctor.address}</span>
+                  </div>
+                )}
+                {doctor.timings && (
+                  <div className="flex items-center space-x-2">
+                    <span>⏰</span>
+                    <span>{doctor.timings}</span>
+                  </div>
+                )}
                 <div className="flex items-center space-x-2">
                   <span>🧬</span>
                   <span className="font-medium text-[#2f9e44]">{doctor.specialization}</span>
                 </div>
+                {doctor.phone && (
+                  <div className="flex items-center space-x-2">
+                    <span>📞</span>
+                    <span>{doctor.phone}</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
