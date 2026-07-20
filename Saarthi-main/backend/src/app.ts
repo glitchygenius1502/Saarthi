@@ -2,6 +2,8 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import { connectDB } from './db';
 import authRoutes from './routes/auth';
+import shecareRoutes from './routes/shecare';
+import gynoRoutes from './routes/gyno';
 
 const app = express();
 
@@ -23,6 +25,8 @@ app.get('/api/health', (_req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/shecare', shecareRoutes);
+app.use('/api/gyno', gynoRoutes);
 
 // Fallback for unknown API routes.
 app.use('/api', (_req, res) => {
