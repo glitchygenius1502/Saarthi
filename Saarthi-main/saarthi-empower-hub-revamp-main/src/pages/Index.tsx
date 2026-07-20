@@ -15,19 +15,33 @@ const Index = () => {
   const [userName, setUserName] = useState("");
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
+  const [pendingNext, setPendingNext] = useState<string | null>(null);
 
-  // Restore an existing session on load so a page refresh keeps the user logged in.
+  // Restore session, and honour ?auth=/?next= params (used when a module sends
+  // a logged-out user here to sign in and return).
   useEffect(() => {
     const session = getSession();
+    const params = new URLSearchParams(window.location.search);
+    const auth = params.get('auth');
+    const next = params.get('next');
+
     if (session) {
       setIsLoggedIn(true);
       setUserName(session.name);
+      if (next) window.location.href = next; // already logged in → go where they wanted
+      return;
+    }
+    if (next) setPendingNext(next);
+    if (auth === 'login' || auth === 'signup') {
+      setAuthMode(auth);
+      setIsAuthOpen(true);
     }
   }, []);
 
   const handleLogin = (name: string) => {
     setIsLoggedIn(true);
     setUserName(name);
+    if (pendingNext) window.location.href = pendingNext; // return to the module
   };
 
   const handleLogout = () => {

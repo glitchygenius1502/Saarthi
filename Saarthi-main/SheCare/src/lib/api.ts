@@ -27,9 +27,10 @@ export const logout = (): void => {
   localStorage.removeItem(USER_KEY);
 };
 
-// Send an unauthenticated visitor to the hub to sign in.
+// Send an unauthenticated visitor to the hub, opening the "Get Started" popup,
+// and return them to SheCycle+ after they sign in.
 export const goToLogin = (): void => {
-  window.location.href = '/';
+  window.location.href = '/?auth=signup&next=' + encodeURIComponent('/shecare');
 };
 
 async function api<T = any>(path: string, options: RequestInit = {}): Promise<T> {

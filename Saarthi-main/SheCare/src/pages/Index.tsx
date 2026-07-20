@@ -40,6 +40,7 @@ const Index = () => {
   useEffect(() => {
     if (!authed) {
       setLoading(false);
+      goToLogin(); // open the hub "Get Started" popup, then return here
       return;
     }
     load();
@@ -62,20 +63,11 @@ const Index = () => {
   if (!authed) {
     return (
       <div className="min-h-screen bg-[#fefaf6] flex items-center justify-center p-6">
-        <div className="bg-[#fff7f2] rounded-2xl p-8 shadow-sm border border-orange-100 text-center max-w-md">
+        <div className="text-center">
           <div className="w-16 h-16 bg-pink-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <LogIn className="w-8 h-8 text-pink-500" />
           </div>
-          <h2 className="text-2xl font-bold text-[#5c3b28] mb-2">Please sign in</h2>
-          <p className="text-[#9b7d65] mb-6">
-            Sign in to your Saarthi account to track your cycle, moods and reminders securely.
-          </p>
-          <button
-            onClick={goToLogin}
-            className="bg-[#9b5f42] hover:bg-[#8b4f32] text-white px-6 py-3 rounded-lg font-medium"
-          >
-            Go to Saarthi login
-          </button>
+          <p className="text-[#9b7d65]">Taking you to sign in…</p>
         </div>
       </div>
     );
