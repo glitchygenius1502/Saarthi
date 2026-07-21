@@ -62,6 +62,7 @@ const Index = () => {
   const [cameraOpen, setCameraOpen] = useState(false);
   const [viewer, setViewer] = useState<{ name: string; data: string; mimeType?: string } | null>(null);
   const [summaryOpen, setSummaryOpen] = useState(false);
+  const [confirm, setConfirm] = useState<{ message: string; action: () => void } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const scanInputRef = useRef<HTMLInputElement>(null);
@@ -258,12 +259,14 @@ const Index = () => {
     }
   };
 
-  const removeReport = async (id: string) => {
+  const doRemoveReport = async (id: string) => {
     try {
       await medivaultApi.deleteReport(id);
       await refresh();
     } catch { /* ignore */ }
   };
+
+  const askDelete = (message: string, action: () => void) => setConfirm({ message, action });
 
   // Derived, DB-backed counts (nothing hardcoded).
   const scanReports = reports.filter((r) => r.category === "scan" || r.category === "xray");
@@ -313,7 +316,7 @@ const Index = () => {
     }
   };
 
-  const removePrescription = async (id: string) => {
+  const doRemovePrescription = async (id: string) => {
     try {
       await medivaultApi.deletePrescription(id);
       await refresh();
@@ -423,7 +426,7 @@ const Index = () => {
   };
 
   const handleScans = () => {
-    scrollToSection('scans-section');
+    scrollToSection('upload-section');
   };
 
   const handleHealthMonitoring = () => {
@@ -515,42 +518,42 @@ const Index = () => {
               </p>
               <div className="grid grid-cols-2 md:grid-cols-6 gap-4 justify-center">
                 <Button 
-                  onClick={handleUploadReport}
+                  onClick={handleUploadReport} data-hint="Upload medical documents"
                   className="bg-[#A67B5B] text-white border border-[#8f6647] hover:bg-[#96694a]  px-6 py-4 rounded-none font-semibold shadow-sm hover:scale-105 transition-all duration-200"
                 >
                   <Upload className="w-5 h-5 mr-2" />
                   Upload Reports
                 </Button>
                 <Button 
-                  onClick={handleBMICalculator}
+                  onClick={handleBMICalculator} data-hint="Open health calculators"
                   className="bg-[#A67B5B] text-white border border-[#8f6647] hover:bg-[#96694a]  px-6 py-4 rounded-none font-semibold shadow-sm hover:scale-105 transition-all duration-200"
                 >
                   <Calculator className="w-5 h-5 mr-2" />
                   Health Calculator
                 </Button>
                 <Button 
-                  onClick={handlePrescriptions}
+                  onClick={handlePrescriptions} data-hint="Manage prescriptions"
                   className="bg-[#A67B5B] text-white border border-[#8f6647] hover:bg-[#96694a] px-6 py-4 rounded-none font-semibold shadow-sm hover:scale-105 transition-all duration-200"
                 >
                   <Pill className="w-5 h-5 mr-2" />
                   Prescriptions
                 </Button>
                 <Button 
-                  onClick={handleHealthRecords}
+                  onClick={handleHealthRecords} data-hint="View your consultations"
                   className="bg-[#A67B5B] text-white border border-[#8f6647] hover:bg-[#96694a] px-6 py-4 rounded-none font-semibold shadow-sm hover:scale-105 transition-all duration-200"
                 >
                   <Stethoscope className="w-5 h-5 mr-2" />
                   Health Records
                 </Button>
                 <Button 
-                  onClick={handleScans}
+                  onClick={handleScans} data-hint="Medical scans & X-rays"
                   className="bg-[#A67B5B] text-white border border-[#8f6647] hover:bg-[#96694a] px-6 py-4 rounded-none font-semibold shadow-sm hover:scale-105 transition-all duration-200"
                 >
                   <Scan className="w-5 h-5 mr-2" />
                   X-rays & Scans
                 </Button>
                 <Button 
-                  onClick={handleHealthMonitoring}
+                  onClick={handleHealthMonitoring} data-hint="Health trends dashboard"
                   className="bg-[#A67B5B] text-white border border-[#8f6647] hover:bg-[#96694a] px-6 py-4 rounded-none font-semibold shadow-sm hover:scale-105 transition-all duration-200"
                 >
                   <Activity className="w-5 h-5 mr-2" />
@@ -568,67 +571,90 @@ const Index = () => {
         <section id="upload-section" className="mb-16">
           <Card className="border-3 border-stone-300 bg-gradient-to-br from-white to-stone-50 shadow-xl">
             <CardHeader className="bg-gradient-to-r from-stone-100 to-stone-200 rounded-t-lg">
-              <CardTitle className=" text-2xl font-bold flex items-center"
-               style={{ color: 'hsl(25, 50%, 15%)' }}>
-                <Upload className="w-7 h-7 mr-3 " 
-                 style={{ color: 'hsl(25, 50%, 20%)' }}/>
-                Upload Medical Documents
+              <CardTitle className="text-2xl font-bold flex items-center" style={{ color: 'hsl(25, 50%, 15%)' }}>
+                <Upload className="w-7 h-7 mr-3" style={{ color: 'hsl(25, 50%, 20%)' }} />
+                Documents, Reports, Scans & X-rays
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-6">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div>
-                  <div 
-                    className="border-3 border-dashed border-stone-400 rounded-2xl p-12 mb-8 bg-gradient-to-br from-stone-50 to-stone-100 hover:from-stone-100 hover:to-stone-150 transition-all duration-300 cursor-pointer shadow-lg hover:shadow-xl transform hover:scale-105"
-                  >
-                    <div className="text-center">
-                      <div className="w-24 h-24 bg-gradient-to-br from-stone-200 to-stone-300 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
-                        <Upload className="w-12 h-12 text-stone-800" />
-                      </div>
-                      <h3 className="text-3xl font-bold mb-4"
-                       style={{ color: 'hsl(25, 50%, 20%)' }}>Drop your files here</h3>
-                      <p className="text-amber-600 mb-6 font-medium text-lg">Support for PDF, JPG, PNG files up to 25MB</p>
-                      <div className="flex gap-2 mb-4 justify-center">
-                        <Button onClick={() => fileInputRef.current?.click()} disabled={uploading} className="bg-[#A67B5B] hover:bg-[#96694a] text-white">
-                          <FileText className="w-4 h-4 mr-2" />
-                          {uploading ? "Uploading…" : "Browse Files"}
-                        </Button>
-                        <Button onClick={() => setCameraOpen(true)} disabled={uploading} variant="outline" className="border-[#A67B5B] text-[#A67B5B] hover:bg-[#A67B5B] hover:text-white">
-                          <Camera className="w-4 h-4 mr-2" />
-                          Take Photo
-                        </Button>
-                      </div>
-                      <input ref={fileInputRef} type="file" accept=".pdf,image/*" className="hidden" onChange={onFilePicked} />
-                      <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onFilePicked} />
-                    </div>
-                  </div>
+              {/* Upload zone */}
+              <div className="border-3 border-dashed border-stone-400 rounded-2xl p-10 mb-6 bg-gradient-to-br from-stone-50 to-stone-100 text-center">
+                <div className="w-20 h-20 bg-gradient-to-br from-stone-200 to-stone-300 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+                  <Upload className="w-10 h-10 text-stone-800" />
                 </div>
-                <div className="h-96 overflow-y-auto rounded-2xl border-2 border-stone-300 shadow-lg bg-white p-4">
-                  <h3 className="text-lg font-bold text-stone-800 mb-3">Your documents ({reports.length})</h3>
-                  {reports.length === 0 ? (
-                    <p className="text-stone-500 text-sm">No files yet. Upload a report, prescription, or scan and it will be stored securely here.</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {reports.map((r) => (
-                        <div key={r._id} className="flex items-center justify-between bg-stone-50 border border-stone-200 rounded-lg px-3 py-2">
-                          <div className="min-w-0">
-                            <div className="font-medium text-stone-800 truncate">{r.name}</div>
-                            <div className="text-xs text-stone-500 capitalize">{r.category} · {Math.round((r.size || 0) / 1024)} KB</div>
-                          </div>
-                          <div className="flex gap-1 shrink-0">
-                            <Button size="sm" variant="outline" onClick={() => viewReport(r._id)} className="border-[#A67B5B] text-[#A67B5B] hover:bg-[#A67B5B] hover:text-white">
-                              <Eye className="w-4 h-4" />
-                            </Button>
-                            <Button size="sm" variant="outline" onClick={() => removeReport(r._id)} className="border-[#A67B5B] text-[#A67B5B] hover:bg-[#A67B5B] hover:text-white">
-                              ✕
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                <h3 className="text-2xl font-bold mb-2" style={{ color: 'hsl(25, 50%, 20%)' }}>Drop your files here</h3>
+                <p className="text-stone-600 mb-5 font-medium">Reports, prescriptions, scans & X-rays — PDF, JPG, PNG up to ~3.5 MB</p>
+                <div className="flex gap-3 justify-center flex-wrap">
+                  <Button onClick={() => fileInputRef.current?.click()} data-hint="Choose a file to upload" disabled={uploading} className="bg-[#A67B5B] hover:bg-[#96694a] text-white">
+                    <FileText className="w-4 h-4 mr-2" />
+                    {uploading ? "Uploading…" : "Browse Files"}
+                  </Button>
+                  <Button onClick={() => setCameraOpen(true)} data-hint="Capture with your camera" disabled={uploading} variant="outline" className="border-[#A67B5B] text-[#A67B5B] hover:bg-[#A67B5B] hover:text-white">
+                    <Camera className="w-4 h-4 mr-2" />
+                    Take Photo
+                  </Button>
+                </div>
+                <input ref={fileInputRef} type="file" accept=".pdf,image/*" className="hidden" onChange={onFilePicked} />
+                <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onFilePicked} />
+              </div>
+
+              {/* Stats */}
+              <div className="grid grid-cols-3 gap-4 mb-6">
+                <div className="text-center p-4 bg-gradient-to-br from-stone-100 to-stone-200 rounded-xl border-2 border-stone-300">
+                  <div className="text-2xl font-bold text-stone-900">{reports.length}</div>
+                  <div className="text-sm text-stone-700 font-semibold">Documents</div>
+                </div>
+                <div className="text-center p-4 bg-gradient-to-br from-stone-100 to-stone-200 rounded-xl border-2 border-stone-300">
+                  <div className="text-2xl font-bold text-stone-900">{scanReports.length}</div>
+                  <div className="text-sm text-stone-700 font-semibold">Scans & X-rays</div>
+                </div>
+                <div className="text-center p-4 bg-gradient-to-br from-stone-100 to-stone-200 rounded-xl border-2 border-stone-300">
+                  <div className="text-2xl font-bold text-stone-900">{storageMB} MB</div>
+                  <div className="text-sm text-stone-700 font-semibold">Storage Used</div>
                 </div>
               </div>
+
+              {/* Documents grid */}
+              {reports.length === 0 ? (
+                <p className="text-stone-500 text-center py-6">No files yet. Upload a report, prescription, scan or X-ray and it will be stored securely here.</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {reports.map((r) => (
+                    <div key={r._id} className="bg-gradient-to-r from-white to-stone-50 border-2 border-stone-200 rounded-2xl p-5 shadow-lg">
+                      <div className="flex items-center space-x-3 mb-3">
+                        <div className="w-14 h-14 bg-gradient-to-br from-blue-100 to-cyan-100 rounded-xl flex items-center justify-center border-2 border-blue-300 shrink-0">
+                          {r.category === "prescription" ? (
+                            <Pill className="w-7 h-7 text-[#A67B5B]" />
+                          ) : r.category === "scan" || r.category === "xray" ? (
+                            <Scan className="w-7 h-7 text-blue-700" />
+                          ) : (
+                            <FileText className="w-7 h-7 text-stone-700" />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="font-bold text-stone-900 truncate">{r.name}</h4>
+                          <p className="text-stone-500 text-xs">{new Date(r.createdAt).toLocaleDateString("en-IN")}</p>
+                          <div className="flex gap-2 mt-1">
+                            <Badge className="bg-stone-200 text-stone-900 border-stone-400 capitalize">{r.category}</Badge>
+                            <Badge className="bg-stone-100 text-stone-700 border-stone-300">{Math.round((r.size || 0) / 1024)} KB</Badge>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="outline" onClick={() => viewReport(r._id)} data-hint="View this file" className="border-[#A67B5B] text-[#A67B5B] hover:bg-[#A67B5B] hover:text-white">
+                          <Eye className="w-4 h-4 mr-1" /> View
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => downloadReport(r._id)} data-hint="Download this file" className="border-[#A67B5B] text-[#A67B5B] hover:bg-[#A67B5B] hover:text-white">
+                          <Download className="w-4 h-4 mr-1" /> Download
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => askDelete(`Delete "${r.name}"?`, () => doRemoveReport(r._id))} data-hint="Delete this file" className="border-[#A67B5B] text-[#A67B5B] hover:bg-[#A67B5B] hover:text-white">
+                          <Minus className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </section>
@@ -671,7 +697,7 @@ const Index = () => {
                   </div>
                   
                   <Button 
-                    onClick={calculateBMI}
+                    onClick={calculateBMI} data-hint="Calculate & save your BMI" style={{ borderRadius: "0.6rem" }}
                     className="w-full bg-[#A67B5B] hover:bg-[#96694a] text-white  py-4 text-lg font-semibold shadow-lg"
                   >
                     Calculate BMI
@@ -714,7 +740,7 @@ const Index = () => {
                   </div>
                   
                   <Button 
-                    onClick={checkBloodPressure}
+                    onClick={checkBloodPressure} data-hint="Check & save blood pressure" style={{ borderRadius: "0.6rem" }}
                     className="w-full bg-[#A67B5B] hover:bg-[#96694a] text-white  text-white py-4 text-lg font-semibold shadow-lg"
                   >
                     Check BP
@@ -749,7 +775,7 @@ const Index = () => {
                           key={c}
                           type="button"
                           onClick={() => setSugarContext(c)}
-                          className={`py-2 rounded-lg text-sm border transition-colors ${
+                          className={`py-2 rounded-none text-sm border transition-colors ${
                             sugarContext === c
                               ? "bg-[#A67B5B] text-white border-[#8f6647]"
                               : "bg-white text-stone-700 border-stone-300 hover:bg-stone-50"
@@ -762,7 +788,7 @@ const Index = () => {
                   </div>
                   
                   <Button 
-                    onClick={checkBloodSugar}
+                    onClick={checkBloodSugar} data-hint="Check & save blood sugar" style={{ borderRadius: "0.6rem" }}
                     className="w-full bg-[#A67B5B] hover:bg-[#96694a] text-white  text-white py-4 text-lg font-semibold shadow-lg"
 
                   >
@@ -863,7 +889,7 @@ const Index = () => {
                     <h3 className="text-xl font-bold" style={{ color: 'hsl(25, 50%, 20%)' }}>
                       Stored Prescriptions ({prescriptions.length})
                     </h3>
-                    <Button onClick={() => setShowRxForm((v) => !v)} className="bg-[#A67B5B] hover:bg-[#96694a] text-white">
+                    <Button onClick={() => setShowRxForm((v) => !v)} data-hint="Add a new prescription" className="bg-[#A67B5B] hover:bg-[#96694a] text-white">
                       {showRxForm ? <Minus className="w-4 h-4 mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
                       {showRxForm ? "Close" : "Add New"}
                     </Button>
@@ -897,7 +923,7 @@ const Index = () => {
                         <Label className="text-stone-700">Attach prescription (PDF/image, optional)</Label>
                         <input type="file" accept=".pdf,image/*" onChange={(e) => setRxFile(e.target.files?.[0] || null)} className="block text-sm mt-1" />
                       </div>
-                      <Button onClick={submitPrescription} disabled={savingRx} className="w-full bg-[#A67B5B] hover:bg-[#96694a] text-white">
+                      <Button onClick={submitPrescription} data-hint="Save this prescription" disabled={savingRx} className="w-full bg-[#A67B5B] hover:bg-[#96694a] text-white">
                         {savingRx ? "Saving…" : "Save Prescription"}
                       </Button>
                     </div>
@@ -928,16 +954,16 @@ const Index = () => {
                         {p.notes && <p className="text-sm text-stone-600 mt-2">{p.notes}</p>}
                         <div className="mt-4 flex gap-2 flex-wrap">
                           {p.reportId && (
-                            <Button size="sm" variant="outline" onClick={() => viewReport(p.reportId)} className="border-[#A67B5B] text-[#A67B5B] hover:bg-[#A67B5B] hover:text-white">
+                            <Button size="sm" variant="outline" onClick={() => viewReport(p.reportId)} data-hint="View attached file" className="border-[#A67B5B] text-[#A67B5B] hover:bg-[#A67B5B] hover:text-white">
                               <Eye className="w-4 h-4 mr-2" />
                               View PDF
                             </Button>
                           )}
-                          <Button size="sm" variant="outline" onClick={() => sharePrescription(p)} className="border-[#A67B5B] text-[#A67B5B] hover:bg-[#A67B5B] hover:text-white">
+                          <Button size="sm" variant="outline" onClick={() => sharePrescription(p)} data-hint="Share this prescription" className="border-[#A67B5B] text-[#A67B5B] hover:bg-[#A67B5B] hover:text-white">
                             <Share className="w-4 h-4 mr-2" />
                             Share
                           </Button>
-                          <Button size="sm" variant="outline" onClick={() => removePrescription(p._id)} className="border-[#A67B5B] text-[#A67B5B] hover:bg-[#A67B5B] hover:text-white">
+                          <Button size="sm" variant="outline" onClick={() => askDelete("Delete this prescription?", () => doRemovePrescription(p._id))} data-hint="Delete this prescription" className="border-[#A67B5B] text-[#A67B5B] hover:bg-[#A67B5B] hover:text-white">
                             Delete
                           </Button>
                         </div>
@@ -1001,7 +1027,7 @@ const Index = () => {
                               )}
                               {p.reportId && (
                                 <div className="mt-3">
-                                  <Button size="sm" variant="outline" onClick={() => viewReport(p.reportId)} className="border-[#A67B5B] text-[#A67B5B] hover:bg-[#A67B5B] hover:text-white">
+                                  <Button size="sm" variant="outline" onClick={() => viewReport(p.reportId)} data-hint="View attached file" className="border-[#A67B5B] text-[#A67B5B] hover:bg-[#A67B5B] hover:text-white">
                                     <Eye className="w-4 h-4 mr-2" />
                                     View Report
                                   </Button>
@@ -1032,79 +1058,6 @@ const Index = () => {
           </Card>
         </section>
 
-        {/* Scans & Reports Section */}
-        <section id="scans-section" className="mb-16">
-          <Card className="border-3 border-stone-300 bg-gradient-to-br from-white to-stone-50 shadow-xl">
-            <CardHeader className="bg-gradient-to-r from-stone-100 to-stone-200 rounded-t-lg">
-              <CardTitle className="text-stone-900 text-2xl font-bold flex items-center">
-                <Scan className="w-7 h-7 mr-3 text-stone-800" />
-                Medical Scans & X-rays
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div className="space-y-6">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-xl font-bold text-stone-900">Your Scans ({scanReports.length})</h3>
-                    <Button onClick={() => scanInputRef.current?.click()} disabled={uploading} className="bg-[#A67B5B] hover:bg-[#96694a] text-white">
-                      <Upload className="w-4 h-4 mr-2" />
-                      {uploading ? "Uploading…" : "Upload Scan"}
-                    </Button>
-                    <input ref={scanInputRef} type="file" accept=".pdf,image/*" className="hidden" onChange={onScanPicked} />
-                  </div>
-
-                  {scanReports.length === 0 ? (
-                    <p className="text-stone-500">No scans yet. Upload an X-ray, ECG, or any report PDF/image to keep it handy.</p>
-                  ) : (
-                    <div className="space-y-4">
-                      {scanReports.map((r) => (
-                        <div key={r._id} className="bg-gradient-to-r from-white to-stone-50 border-2 border-stone-200 rounded-2xl p-6 shadow-lg">
-                          <div className="flex items-center space-x-4 mb-4">
-                            <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-cyan-100 rounded-xl flex items-center justify-center border-2 border-blue-300">
-                              <Scan className="w-8 h-8 text-blue-700" />
-                            </div>
-                            <div className="min-w-0">
-                              <h4 className="font-bold text-stone-900 text-lg truncate">{r.name}</h4>
-                              <p className="text-stone-600 text-sm">{new Date(r.createdAt).toLocaleDateString("en-IN")}</p>
-                              <Badge className="bg-stone-200 text-stone-900 border-stone-400 mt-1">{Math.round((r.size || 0) / 1024)} KB</Badge>
-                            </div>
-                          </div>
-                          <div className="flex gap-2">
-                            <Button size="sm" variant="outline" onClick={() => viewReport(r._id)} className="border-[#A67B5B] text-[#A67B5B] hover:bg-[#A67B5B] hover:text-white">
-                              <Eye className="w-4 h-4 mr-2" />
-                              View
-                            </Button>
-                            <Button size="sm" variant="outline" onClick={() => downloadReport(r._id)} className="border-[#A67B5B] text-[#A67B5B] hover:bg-[#A67B5B] hover:text-white">
-                              <Download className="w-4 h-4 mr-2" />
-                              Download
-                            </Button>
-                            <Button size="sm" variant="outline" onClick={() => removeReport(r._id)} className="border-[#A67B5B] text-[#A67B5B] hover:bg-[#A67B5B] hover:text-white">
-                              Delete
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="text-center p-4 bg-gradient-to-br from-stone-100 to-stone-200 rounded-xl border-2 border-stone-300">
-                      <div className="text-2xl font-bold text-stone-900">{scanReports.length}</div>
-                      <div className="text-sm text-stone-700 font-semibold">Total Scans</div>
-                    </div>
-                    <div className="text-center p-4 bg-gradient-to-br from-stone-100 to-stone-200 rounded-xl border-2 border-stone-300">
-                      <div className="text-2xl font-bold text-stone-900">{storageMB} MB</div>
-                      <div className="text-sm text-stone-700 font-semibold">Storage Used</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </section>
-
         {/* Footer CTA */}
         <div 
           className="bg-gradient-to-r from-stone-100 to-stone-200 rounded-3xl border-3 border-stone-300 shadow-2xl p-10"
@@ -1121,11 +1074,11 @@ const Index = () => {
               Join thousands who trust MediVault for secure, comprehensive health record management.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button onClick={() => setSummaryOpen(true)} className="bg-[#A67B5B] hover:bg-[#96694a] text-white px-8 py-4 rounded-xl font-semibold text-lg shadow-lg">
+              <Button onClick={() => setSummaryOpen(true)} data-hint="View your health summary" className="bg-[#A67B5B] hover:bg-[#96694a] text-white px-8 py-4 rounded-xl font-semibold text-lg shadow-lg">
                 <FileText className="w-5 h-5 mr-3" />
                 View Health Summary
               </Button>
-              <Button onClick={shareWithDoctor} className="bg-[#A67B5B] hover:bg-[#96694a] text-white px-8 py-4 rounded-xl font-semibold text-lg shadow-lg">
+              <Button onClick={shareWithDoctor} data-hint="Share with your doctor" className="bg-[#A67B5B] hover:bg-[#96694a] text-white px-8 py-4 rounded-xl font-semibold text-lg shadow-lg">
                 <Share className="w-5 h-5 mr-3" />
                 Share with Doctor
               </Button>
@@ -1140,7 +1093,7 @@ const Index = () => {
           <DialogHeader><DialogTitle>Take a photo</DialogTitle></DialogHeader>
           <video ref={videoRef} autoPlay playsInline muted className="w-full rounded-lg bg-black" />
           <div className="flex gap-2 justify-center mt-2">
-            <Button onClick={capturePhoto} className="bg-[#A67B5B] hover:bg-[#96694a] text-white">
+            <Button onClick={capturePhoto} data-hint="Capture & save the photo" className="bg-[#A67B5B] hover:bg-[#96694a] text-white">
               <Camera className="w-4 h-4 mr-2" />Capture & Save
             </Button>
             <Button variant="outline" onClick={() => setCameraOpen(false)} className="border-[#A67B5B] text-[#A67B5B] hover:bg-[#A67B5B] hover:text-white">
@@ -1177,8 +1130,20 @@ const Index = () => {
           <DialogHeader><DialogTitle>Your Health Summary</DialogTitle></DialogHeader>
           <pre className="whitespace-pre-wrap text-sm text-stone-800 bg-stone-50 border border-stone-200 rounded-lg p-4 max-h-[60vh] overflow-auto">{buildSummary()}</pre>
           <div className="flex gap-2 justify-end mt-2">
-            <Button onClick={downloadSummary} className="bg-[#A67B5B] hover:bg-[#96694a] text-white"><Download className="w-4 h-4 mr-2" />Download</Button>
-            <Button onClick={shareWithDoctor} variant="outline" className="border-[#A67B5B] text-[#A67B5B] hover:bg-[#A67B5B] hover:text-white"><Share className="w-4 h-4 mr-2" />Share</Button>
+            <Button onClick={downloadSummary} data-hint="Download the summary" className="bg-[#A67B5B] hover:bg-[#96694a] text-white"><Download className="w-4 h-4 mr-2" />Download</Button>
+            <Button onClick={shareWithDoctor} data-hint="Share with your doctor" variant="outline" className="border-[#A67B5B] text-[#A67B5B] hover:bg-[#A67B5B] hover:text-white"><Share className="w-4 h-4 mr-2" />Share</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirmation popup */}
+      <Dialog open={!!confirm} onOpenChange={(o) => !o && setConfirm(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Please confirm</DialogTitle></DialogHeader>
+          <p className="text-stone-700">{confirm?.message}</p>
+          <div className="flex gap-2 justify-end mt-2">
+            <Button variant="outline" onClick={() => setConfirm(null)} className="border-[#A67B5B] text-[#A67B5B] hover:bg-[#A67B5B] hover:text-white">Cancel</Button>
+            <Button onClick={() => { confirm?.action(); setConfirm(null); }} className="bg-[#A67B5B] hover:bg-[#96694a] text-white">Delete</Button>
           </div>
         </DialogContent>
       </Dialog>
