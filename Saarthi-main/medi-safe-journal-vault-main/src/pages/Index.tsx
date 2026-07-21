@@ -10,6 +10,7 @@ import { Upload, Calendar, Bell, Share, Download, FileText, Plus, Minus, Link, H
 import { useState, useEffect, useRef } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { useToast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   medivaultApi, classifyBmi, classifyBp, classifySugar, fileToDataUrl,
   getToken, getUser, goToLogin, ReportMeta, Metric,
@@ -58,10 +59,67 @@ const Index = () => {
   const [showRxForm, setShowRxForm] = useState(false);
   const [rxForm, setRxForm] = useState({ doctorName: "", speciality: "", date: "", medications: "", notes: "" });
   const [rxFile, setRxFile] = useState<File | null>(null);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [viewer, setViewer] = useState<{ name: string; data: string; mimeType?: string } | null>(null);
+  const [summaryOpen, setSummaryOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const scanInputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const user = getUser();
+
+  // Start/stop the live camera when the camera dialog opens/closes.
+  useEffect(() => {
+    if (!cameraOpen) return;
+    let active = true;
+    (async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        if (!active) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        streamRef.current = stream;
+        if (videoRef.current) videoRef.current.srcObject = stream;
+      } catch {
+        setCameraOpen(false);
+        toast({ title: "Camera unavailable", description: "Opening the file picker instead." });
+        cameraInputRef.current?.click();
+      }
+    })();
+    return () => {
+      active = false;
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    };
+  }, [cameraOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const capturePhoto = async () => {
+    const video = videoRef.current;
+    if (!video) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth || 720;
+    canvas.height = video.videoHeight || 960;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const data = canvas.toDataURL("image/jpeg", 0.85);
+    setCameraOpen(false);
+    try {
+      setUploading(true);
+      await medivaultApi.uploadReport({
+        name: `photo-${Date.now()}.jpg`, category: "scan", mimeType: "image/jpeg",
+        size: Math.round(data.length * 0.75), data,
+      });
+      await refresh();
+      toast({ title: "Photo captured & saved ✅" });
+    } catch (e: any) {
+      toast({ title: "Upload failed", description: e?.message, variant: "destructive" });
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const refresh = async () => {
     try {
@@ -158,12 +216,7 @@ const Index = () => {
   const viewReport = async (id: string) => {
     try {
       const { report } = await medivaultApi.getReport(id);
-      const w = window.open("", "_blank");
-      if (w) {
-        w.document.title = report.name;
-        w.document.body.style.margin = "0";
-        w.document.body.innerHTML = `<iframe src="${report.data}" style="width:100vw;height:100vh;border:0"></iframe>`;
-      }
+      setViewer({ name: report.name, data: report.data, mimeType: report.mimeType });
     } catch (e: any) {
       toast({ title: "Could not open file", description: e?.message, variant: "destructive" });
     }
@@ -536,11 +589,11 @@ const Index = () => {
                        style={{ color: 'hsl(25, 50%, 20%)' }}>Drop your files here</h3>
                       <p className="text-amber-600 mb-6 font-medium text-lg">Support for PDF, JPG, PNG files up to 25MB</p>
                       <div className="flex gap-2 mb-4 justify-center">
-                        <Button onClick={() => fileInputRef.current?.click()} disabled={uploading} className="bg-amber-900 hover:bg-amber-700 text-white">
+                        <Button onClick={() => fileInputRef.current?.click()} disabled={uploading} className="bg-[#A67B5B] hover:bg-[#96694a] text-white">
                           <FileText className="w-4 h-4 mr-2" />
                           {uploading ? "Uploading…" : "Browse Files"}
                         </Button>
-                        <Button onClick={() => cameraInputRef.current?.click()} disabled={uploading} variant="outline" className="border-stone-400">
+                        <Button onClick={() => setCameraOpen(true)} disabled={uploading} variant="outline" className="border-[#A67B5B] text-[#A67B5B] hover:bg-[#A67B5B] hover:text-white">
                           <Camera className="w-4 h-4 mr-2" />
                           Take Photo
                         </Button>
@@ -563,10 +616,10 @@ const Index = () => {
                             <div className="text-xs text-stone-500 capitalize">{r.category} · {Math.round((r.size || 0) / 1024)} KB</div>
                           </div>
                           <div className="flex gap-1 shrink-0">
-                            <Button size="sm" variant="outline" onClick={() => viewReport(r._id)} className="border-stone-300">
+                            <Button size="sm" variant="outline" onClick={() => viewReport(r._id)} className="border-[#A67B5B] text-[#A67B5B] hover:bg-[#A67B5B] hover:text-white">
                               <Eye className="w-4 h-4" />
                             </Button>
-                            <Button size="sm" variant="outline" onClick={() => removeReport(r._id)} className="border-red-300 text-red-600">
+                            <Button size="sm" variant="outline" onClick={() => removeReport(r._id)} className="border-[#A67B5B] text-[#A67B5B] hover:bg-[#A67B5B] hover:text-white">
                               ✕
                             </Button>
                           </div>
@@ -810,7 +863,7 @@ const Index = () => {
                     <h3 className="text-xl font-bold" style={{ color: 'hsl(25, 50%, 20%)' }}>
                       Stored Prescriptions ({prescriptions.length})
                     </h3>
-                    <Button onClick={() => setShowRxForm((v) => !v)} className="bg-stone-800 hover:bg-stone-900 text-white">
+                    <Button onClick={() => setShowRxForm((v) => !v)} className="bg-[#A67B5B] hover:bg-[#96694a] text-white">
                       {showRxForm ? <Minus className="w-4 h-4 mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
                       {showRxForm ? "Close" : "Add New"}
                     </Button>
@@ -844,7 +897,7 @@ const Index = () => {
                         <Label className="text-stone-700">Attach prescription (PDF/image, optional)</Label>
                         <input type="file" accept=".pdf,image/*" onChange={(e) => setRxFile(e.target.files?.[0] || null)} className="block text-sm mt-1" />
                       </div>
-                      <Button onClick={submitPrescription} disabled={savingRx} className="w-full bg-stone-800 text-white">
+                      <Button onClick={submitPrescription} disabled={savingRx} className="w-full bg-[#A67B5B] hover:bg-[#96694a] text-white">
                         {savingRx ? "Saving…" : "Save Prescription"}
                       </Button>
                     </div>
@@ -875,16 +928,16 @@ const Index = () => {
                         {p.notes && <p className="text-sm text-stone-600 mt-2">{p.notes}</p>}
                         <div className="mt-4 flex gap-2 flex-wrap">
                           {p.reportId && (
-                            <Button size="sm" variant="outline" onClick={() => viewReport(p.reportId)} className="border-stone-400">
+                            <Button size="sm" variant="outline" onClick={() => viewReport(p.reportId)} className="border-[#A67B5B] text-[#A67B5B] hover:bg-[#A67B5B] hover:text-white">
                               <Eye className="w-4 h-4 mr-2" />
                               View PDF
                             </Button>
                           )}
-                          <Button size="sm" variant="outline" onClick={() => sharePrescription(p)} className="border-stone-400">
+                          <Button size="sm" variant="outline" onClick={() => sharePrescription(p)} className="border-[#A67B5B] text-[#A67B5B] hover:bg-[#A67B5B] hover:text-white">
                             <Share className="w-4 h-4 mr-2" />
                             Share
                           </Button>
-                          <Button size="sm" variant="outline" onClick={() => removePrescription(p._id)} className="border-red-300 text-red-600">
+                          <Button size="sm" variant="outline" onClick={() => removePrescription(p._id)} className="border-[#A67B5B] text-[#A67B5B] hover:bg-[#A67B5B] hover:text-white">
                             Delete
                           </Button>
                         </div>
@@ -948,7 +1001,7 @@ const Index = () => {
                               )}
                               {p.reportId && (
                                 <div className="mt-3">
-                                  <Button size="sm" variant="outline" onClick={() => viewReport(p.reportId)} className="border-stone-400">
+                                  <Button size="sm" variant="outline" onClick={() => viewReport(p.reportId)} className="border-[#A67B5B] text-[#A67B5B] hover:bg-[#A67B5B] hover:text-white">
                                     <Eye className="w-4 h-4 mr-2" />
                                     View Report
                                   </Button>
@@ -993,7 +1046,7 @@ const Index = () => {
                 <div className="space-y-6">
                   <div className="flex justify-between items-center">
                     <h3 className="text-xl font-bold text-stone-900">Your Scans ({scanReports.length})</h3>
-                    <Button onClick={() => scanInputRef.current?.click()} disabled={uploading} className="bg-stone-800 hover:bg-stone-900 text-white">
+                    <Button onClick={() => scanInputRef.current?.click()} disabled={uploading} className="bg-[#A67B5B] hover:bg-[#96694a] text-white">
                       <Upload className="w-4 h-4 mr-2" />
                       {uploading ? "Uploading…" : "Upload Scan"}
                     </Button>
@@ -1017,15 +1070,15 @@ const Index = () => {
                             </div>
                           </div>
                           <div className="flex gap-2">
-                            <Button size="sm" variant="outline" onClick={() => viewReport(r._id)} className="border-stone-400">
+                            <Button size="sm" variant="outline" onClick={() => viewReport(r._id)} className="border-[#A67B5B] text-[#A67B5B] hover:bg-[#A67B5B] hover:text-white">
                               <Eye className="w-4 h-4 mr-2" />
                               View
                             </Button>
-                            <Button size="sm" variant="outline" onClick={() => downloadReport(r._id)} className="border-stone-400">
+                            <Button size="sm" variant="outline" onClick={() => downloadReport(r._id)} className="border-[#A67B5B] text-[#A67B5B] hover:bg-[#A67B5B] hover:text-white">
                               <Download className="w-4 h-4 mr-2" />
                               Download
                             </Button>
-                            <Button size="sm" variant="outline" onClick={() => removeReport(r._id)} className="border-red-300 text-red-600">
+                            <Button size="sm" variant="outline" onClick={() => removeReport(r._id)} className="border-[#A67B5B] text-[#A67B5B] hover:bg-[#A67B5B] hover:text-white">
                               Delete
                             </Button>
                           </div>
@@ -1068,11 +1121,11 @@ const Index = () => {
               Join thousands who trust MediVault for secure, comprehensive health record management.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button onClick={downloadSummary} className="bg-gradient-to-r from-stone-800 to-stone-900 hover:from-stone-900 hover:to-black text-white px-8 py-4 rounded-xl font-semibold text-lg shadow-lg">
-                <Download className="w-5 h-5 mr-3" />
-                Download Health Summary
+              <Button onClick={() => setSummaryOpen(true)} className="bg-[#A67B5B] hover:bg-[#96694a] text-white px-8 py-4 rounded-xl font-semibold text-lg shadow-lg">
+                <FileText className="w-5 h-5 mr-3" />
+                View Health Summary
               </Button>
-              <Button onClick={shareWithDoctor} className="bg-gradient-to-r from-stone-700 to-stone-800 hover:from-stone-800 hover:to-stone-900 text-white px-8 py-4 rounded-xl font-semibold text-lg shadow-lg">
+              <Button onClick={shareWithDoctor} className="bg-[#A67B5B] hover:bg-[#96694a] text-white px-8 py-4 rounded-xl font-semibold text-lg shadow-lg">
                 <Share className="w-5 h-5 mr-3" />
                 Share with Doctor
               </Button>
@@ -1080,6 +1133,55 @@ const Index = () => {
           </div>
         </div>
       </div>
+
+      {/* Camera capture popup */}
+      <Dialog open={cameraOpen} onOpenChange={(o) => setCameraOpen(o)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Take a photo</DialogTitle></DialogHeader>
+          <video ref={videoRef} autoPlay playsInline muted className="w-full rounded-lg bg-black" />
+          <div className="flex gap-2 justify-center mt-2">
+            <Button onClick={capturePhoto} className="bg-[#A67B5B] hover:bg-[#96694a] text-white">
+              <Camera className="w-4 h-4 mr-2" />Capture & Save
+            </Button>
+            <Button variant="outline" onClick={() => setCameraOpen(false)} className="border-[#A67B5B] text-[#A67B5B] hover:bg-[#A67B5B] hover:text-white">
+              Cancel
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* File viewer popup */}
+      <Dialog open={!!viewer} onOpenChange={(o) => !o && setViewer(null)}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader><DialogTitle className="truncate pr-6">{viewer?.name}</DialogTitle></DialogHeader>
+          {viewer && (
+            <div className="w-full h-[70vh] bg-stone-100 rounded-lg overflow-auto flex items-center justify-center">
+              {viewer.mimeType?.startsWith("image/") ? (
+                <img src={viewer.data} alt={viewer.name} className="max-w-full max-h-full object-contain" />
+              ) : (
+                <iframe src={viewer.data} title={viewer.name} className="w-full h-full border-0" />
+              )}
+            </div>
+          )}
+          <div className="flex justify-end mt-2">
+            <a href={viewer?.data} download={viewer?.name}>
+              <Button className="bg-[#A67B5B] hover:bg-[#96694a] text-white"><Download className="w-4 h-4 mr-2" />Download</Button>
+            </a>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Health summary popup */}
+      <Dialog open={summaryOpen} onOpenChange={(o) => setSummaryOpen(o)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader><DialogTitle>Your Health Summary</DialogTitle></DialogHeader>
+          <pre className="whitespace-pre-wrap text-sm text-stone-800 bg-stone-50 border border-stone-200 rounded-lg p-4 max-h-[60vh] overflow-auto">{buildSummary()}</pre>
+          <div className="flex gap-2 justify-end mt-2">
+            <Button onClick={downloadSummary} className="bg-[#A67B5B] hover:bg-[#96694a] text-white"><Download className="w-4 h-4 mr-2" />Download</Button>
+            <Button onClick={shareWithDoctor} variant="outline" className="border-[#A67B5B] text-[#A67B5B] hover:bg-[#A67B5B] hover:text-white"><Share className="w-4 h-4 mr-2" />Share</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
