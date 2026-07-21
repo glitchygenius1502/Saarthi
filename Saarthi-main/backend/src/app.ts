@@ -4,10 +4,12 @@ import { connectDB } from './db';
 import authRoutes from './routes/auth';
 import shecareRoutes from './routes/shecare';
 import gynoRoutes from './routes/gyno';
+import medivaultRoutes from './routes/medivault';
 
 const app = express();
 
-app.use(express.json());
+// Larger limit so base64 file uploads (reports/scans) fit.
+app.use(express.json({ limit: '6mb' }));
 app.use(cors());
 
 // Ensure the DB is connected (cached) before handling any /api route.
@@ -27,6 +29,7 @@ app.get('/api/health', (_req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/shecare', shecareRoutes);
 app.use('/api/gyno', gynoRoutes);
+app.use('/api/medivault', medivaultRoutes);
 
 // Fallback for unknown API routes.
 app.use('/api', (_req, res) => {
