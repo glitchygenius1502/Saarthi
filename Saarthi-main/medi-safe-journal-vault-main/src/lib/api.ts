@@ -69,6 +69,10 @@ export const medivaultApi = {
   listMetrics: (type?: string) => api<{ metrics: Metric[] }>(`/medivault/metrics${type ? `?type=${type}` : ''}`),
   saveMetric: (body: Record<string, unknown>) =>
     api<{ metric: Metric }>('/medivault/metrics', { method: 'POST', body: JSON.stringify(body) }),
+  listPrescriptions: () => api<{ prescriptions: any[] }>('/medivault/prescriptions'),
+  addPrescription: (body: Record<string, unknown>) =>
+    api<{ prescription: any }>('/medivault/prescriptions', { method: 'POST', body: JSON.stringify(body) }),
+  deletePrescription: (id: string) => api(`/medivault/prescriptions/${id}`, { method: 'DELETE' }),
 };
 
 // Shared client-side classification (mirrors the server) for instant feedback.

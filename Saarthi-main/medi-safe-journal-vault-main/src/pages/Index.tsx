@@ -6,71 +6,346 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
-import { Upload, Calendar, Bell, Share, Download, FileText, Plus, Link, Heart, Activity, Shield, Calculator, Stethoscope, Pill, Scan, Camera, Eye, Database } from "lucide-react";
-import { useState } from "react";
+import { Upload, Calendar, Bell, Share, Download, FileText, Plus, Minus, Link, Heart, Activity, Shield, Calculator, Stethoscope, Pill, Scan, Camera, Eye, Database } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import { useToast } from "@/hooks/use-toast";
+import {
+  medivaultApi, classifyBmi, classifyBp, classifySugar, fileToDataUrl,
+  getToken, getUser, goToLogin, ReportMeta, Metric,
+} from "@/lib/api";
+
+const bmiAdvice: Record<string, string> = {
+  Underweight: "Consider increasing caloric intake",
+  Normal: "Excellent — keep maintaining",
+  Overweight: "Consider diet and exercise",
+  Obese: "Consult a healthcare provider",
+};
+
+// Merge saved readings (different types/dates) into one time-ordered series.
+function buildChartData(metrics: Metric[]) {
+  const byDate: Record<string, any> = {};
+  metrics.forEach((m) => {
+    const t = new Date(m.date).getTime();
+    const label = new Date(m.date).toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
+    byDate[label] = byDate[label] || { label, _t: t };
+    if (m.type === "weight" && m.weightKg != null) byDate[label].weight = m.weightKg;
+    if (m.type === "bp" && m.systolic != null) byDate[label].bp = m.systolic;
+    if (m.type === "sugar" && m.sugar != null) byDate[label].sugar = m.sugar;
+  });
+  return Object.values(byDate).sort((a: any, b: any) => a._t - b._t);
+}
 
 const Index = () => {
+  const authed = !!getToken();
+  const { toast } = useToast();
+
   const [weight, setWeight] = useState("");
   const [height, setHeight] = useState("");
   const [bmi, setBmi] = useState<number | null>(null);
   const [bmiCategory, setBmiCategory] = useState("");
   const [bp, setBp] = useState({ systolic: "", diastolic: "" });
   const [sugar, setSugar] = useState("");
+  const [sugarContext, setSugarContext] = useState<"fasting" | "random" | "postmeal">("fasting");
   const [bpResult, setBpResult] = useState("");
   const [sugarResult, setSugarResult] = useState("");
 
-  // Health monitoring data
-  const healthData = [
-    { month: 'Jan', weight: 70, bp: 120, sugar: 95 },
-    { month: 'Feb', weight: 69, bp: 118, sugar: 92 },
-    { month: 'Mar', weight: 68, bp: 122, sugar: 88 },
-    { month: 'Apr', weight: 67, bp: 115, sugar: 94 },
-    { month: 'May', weight: 66, bp: 120, sugar: 90 },
-    { month: 'Jun', weight: 65, bp: 118, sugar: 87 },
-  ];
+  const [reports, setReports] = useState<ReportMeta[]>([]);
+  const [metrics, setMetrics] = useState<Metric[]>([]);
+  const [prescriptions, setPrescriptions] = useState<any[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [savingRx, setSavingRx] = useState(false);
+  const [showRxForm, setShowRxForm] = useState(false);
+  const [rxForm, setRxForm] = useState({ doctorName: "", speciality: "", date: "", medications: "", notes: "" });
+  const [rxFile, setRxFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const scanInputRef = useRef<HTMLInputElement>(null);
+  const user = getUser();
 
-  const calculateBMI = () => {
-    if (weight && height) {
-      const heightInMeters = parseFloat(height) / 100;
-      const calculatedBMI = parseFloat(weight) / (heightInMeters * heightInMeters);
-      setBmi(parseFloat(calculatedBMI.toFixed(1)));
-      
-      if (calculatedBMI < 18.5) setBmiCategory("Underweight - Consider increasing caloric intake");
-      else if (calculatedBMI >= 18.5 && calculatedBMI < 25) setBmiCategory("Normal weight - Excellent! Keep maintaining");
-      else if (calculatedBMI >= 25 && calculatedBMI < 30) setBmiCategory("Overweight - Consider diet and exercise");
-      else setBmiCategory("Obese - Consult healthcare provider");
+  const refresh = async () => {
+    try {
+      const [r, m, p] = await Promise.all([
+        medivaultApi.listReports(),
+        medivaultApi.listMetrics(),
+        medivaultApi.listPrescriptions(),
+      ]);
+      setReports(r.reports);
+      setMetrics(m.metrics);
+      setPrescriptions(p.prescriptions);
+    } catch {
+      /* 401 redirects inside the api helper */
     }
   };
 
-  const checkBloodPressure = () => {
-    if (bp.systolic && bp.diastolic) {
-      const systolic = parseInt(bp.systolic);
-      const diastolic = parseInt(bp.diastolic);
-      
-      if (systolic < 120 && diastolic < 80) {
-        setBpResult("Normal - Your blood pressure is in the healthy range");
-      } else if (systolic < 130 && diastolic < 80) {
-        setBpResult("Elevated - Monitor closely and consider lifestyle changes");
-      } else if (systolic < 140 || diastolic < 90) {
-        setBpResult("High Blood Pressure Stage 1 - Consult your doctor");
-      } else {
-        setBpResult("High Blood Pressure Stage 2 - Seek immediate medical attention");
-      }
+  useEffect(() => {
+    if (!authed) {
+      goToLogin();
+      return;
+    }
+    refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const chartData = buildChartData(metrics);
+
+  const calculateBMI = async () => {
+    if (!weight || !height) return;
+    const hm = parseFloat(height) / 100;
+    const b = Math.round((parseFloat(weight) / (hm * hm)) * 10) / 10;
+    setBmi(b);
+    const cat = classifyBmi(b);
+    setBmiCategory(`${cat} — ${bmiAdvice[cat] || ""}`);
+    try {
+      await medivaultApi.saveMetric({ type: "weight", weightKg: parseFloat(weight), heightCm: parseFloat(height) });
+      await refresh();
+      toast({ title: "Reading saved ✅", description: "Your weight/BMI was added to your health trends." });
+    } catch (e: any) {
+      toast({ title: "Could not save", description: e?.message || "Try again.", variant: "destructive" });
     }
   };
 
-  const checkBloodSugar = () => {
-    if (sugar) {
-      const sugarLevel = parseInt(sugar);
-      
-      if (sugarLevel < 100) {
-        setSugarResult("Normal - Your blood sugar is in healthy range");
-      } else if (sugarLevel < 126) {
-        setSugarResult("Pre-diabetes - Consider dietary changes and exercise");
-      } else {
-        setSugarResult("Diabetes range - Consult your doctor immediately");
+  const checkBloodPressure = async () => {
+    if (!bp.systolic || !bp.diastolic) return;
+    const s = parseInt(bp.systolic);
+    const d = parseInt(bp.diastolic);
+    setBpResult(classifyBp(s, d));
+    try {
+      await medivaultApi.saveMetric({ type: "bp", systolic: s, diastolic: d });
+      await refresh();
+      toast({ title: "Reading saved ✅", description: "Your blood pressure was added to your trends." });
+    } catch (e: any) {
+      toast({ title: "Could not save", description: e?.message || "Try again.", variant: "destructive" });
+    }
+  };
+
+  const checkBloodSugar = async () => {
+    if (!sugar) return;
+    const v = parseInt(sugar);
+    setSugarResult(`${classifySugar(v, sugarContext)} · ${sugarContext}`);
+    try {
+      await medivaultApi.saveMetric({ type: "sugar", sugar: v, sugarContext });
+      await refresh();
+      toast({ title: "Reading saved ✅", description: "Your blood sugar was added to your trends." });
+    } catch (e: any) {
+      toast({ title: "Could not save", description: e?.message || "Try again.", variant: "destructive" });
+    }
+  };
+
+  const onFilePicked = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 3.6 * 1024 * 1024) {
+      toast({ title: "File too large", description: "Please choose a file under ~3.5 MB.", variant: "destructive" });
+      if (e.target) e.target.value = "";
+      return;
+    }
+    try {
+      setUploading(true);
+      const data = await fileToDataUrl(file);
+      const category = /^image\//.test(file.type) ? "scan" : "report";
+      await medivaultApi.uploadReport({ name: file.name, category, mimeType: file.type, size: file.size, data });
+      await refresh();
+      toast({ title: "Uploaded ✅", description: file.name });
+    } catch (err: any) {
+      toast({ title: "Upload failed", description: err?.message || "Try again.", variant: "destructive" });
+    } finally {
+      setUploading(false);
+      if (e.target) e.target.value = "";
+    }
+  };
+
+  const viewReport = async (id: string) => {
+    try {
+      const { report } = await medivaultApi.getReport(id);
+      const w = window.open("", "_blank");
+      if (w) {
+        w.document.title = report.name;
+        w.document.body.style.margin = "0";
+        w.document.body.innerHTML = `<iframe src="${report.data}" style="width:100vw;height:100vh;border:0"></iframe>`;
       }
+    } catch (e: any) {
+      toast({ title: "Could not open file", description: e?.message, variant: "destructive" });
+    }
+  };
+
+  const downloadReport = async (id: string) => {
+    try {
+      const { report } = await medivaultApi.getReport(id);
+      const a = document.createElement("a");
+      a.href = report.data;
+      a.download = report.name || "download";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (e: any) {
+      toast({ title: "Could not download", description: e?.message, variant: "destructive" });
+    }
+  };
+
+  const onScanPicked = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 3.6 * 1024 * 1024) {
+      toast({ title: "File too large", description: "Please choose a file under ~3.5 MB.", variant: "destructive" });
+      if (e.target) e.target.value = "";
+      return;
+    }
+    try {
+      setUploading(true);
+      const data = await fileToDataUrl(file);
+      await medivaultApi.uploadReport({ name: file.name, category: "scan", mimeType: file.type, size: file.size, data });
+      await refresh();
+      toast({ title: "Scan uploaded ✅", description: file.name });
+    } catch (err: any) {
+      toast({ title: "Upload failed", description: err?.message || "Try again.", variant: "destructive" });
+    } finally {
+      setUploading(false);
+      if (e.target) e.target.value = "";
+    }
+  };
+
+  const removeReport = async (id: string) => {
+    try {
+      await medivaultApi.deleteReport(id);
+      await refresh();
+    } catch { /* ignore */ }
+  };
+
+  // Derived, DB-backed counts (nothing hardcoded).
+  const scanReports = reports.filter((r) => r.category === "scan" || r.category === "xray");
+  const connectedDoctors = new Set(prescriptions.map((p) => (p.doctorName || "").trim().toLowerCase())).size;
+  const storageMB = Math.round((reports.reduce((a, r) => a + (r.size || 0), 0) / (1024 * 1024)) * 10) / 10;
+
+  const submitPrescription = async () => {
+    if (!rxForm.doctorName.trim()) {
+      toast({ title: "Doctor name is required", variant: "destructive" });
+      return;
+    }
+    try {
+      setSavingRx(true);
+      let reportId: string | undefined;
+      let reportName: string | undefined;
+      if (rxFile) {
+        if (rxFile.size > 3.6 * 1024 * 1024) {
+          toast({ title: "File too large", description: "Under ~3.5 MB please.", variant: "destructive" });
+          setSavingRx(false);
+          return;
+        }
+        const data = await fileToDataUrl(rxFile);
+        const up = await medivaultApi.uploadReport({
+          name: rxFile.name, category: "prescription", mimeType: rxFile.type, size: rxFile.size, data,
+        });
+        reportId = up.report._id;
+        reportName = up.report.name;
+      }
+      await medivaultApi.addPrescription({
+        doctorName: rxForm.doctorName,
+        speciality: rxForm.speciality,
+        date: rxForm.date,
+        medications: rxForm.medications.split("\n").map((s) => s.trim()).filter(Boolean),
+        notes: rxForm.notes,
+        reportId,
+        reportName,
+      });
+      await refresh();
+      setRxForm({ doctorName: "", speciality: "", date: "", medications: "", notes: "" });
+      setRxFile(null);
+      setShowRxForm(false);
+      toast({ title: "Prescription saved ✅" });
+    } catch (e: any) {
+      toast({ title: "Could not save", description: e?.message, variant: "destructive" });
+    } finally {
+      setSavingRx(false);
+    }
+  };
+
+  const removePrescription = async (id: string) => {
+    try {
+      await medivaultApi.deletePrescription(id);
+      await refresh();
+    } catch { /* ignore */ }
+  };
+
+  const buildSummary = () => {
+    const latest = (t: string) => metrics.filter((m) => m.type === t).slice(-1)[0];
+    const w = latest("weight");
+    const b = latest("bp");
+    const s = latest("sugar");
+    const L: string[] = [];
+    L.push("SAARTHI — HEALTH SUMMARY");
+    L.push(`Name: ${user?.name || "User"}`);
+    L.push(`Generated: ${new Date().toLocaleString("en-IN")}`);
+    L.push("");
+    L.push("VITALS (latest readings)");
+    if (w) L.push(`- Weight: ${w.weightKg} kg${w.bmi ? ` | BMI ${w.bmi} (${w.category})` : ""}`);
+    if (b) L.push(`- Blood Pressure: ${b.systolic}/${b.diastolic} mmHg (${b.category})`);
+    if (s) L.push(`- Blood Sugar: ${s.sugar} mg/dL, ${s.sugarContext} (${s.category})`);
+    if (!w && !b && !s) L.push("- No readings logged yet.");
+    L.push("");
+    L.push(`TRENDS: ${metrics.length} reading(s) logged over time.`);
+    L.push("");
+    L.push(`CONSULTATIONS (${prescriptions.length}) with ${connectedDoctors} doctor(s):`);
+    prescriptions.slice(0, 12).forEach((p) =>
+      L.push(`- ${p.doctorName}${p.speciality ? ` (${p.speciality})` : ""}${p.date ? ` - ${p.date}` : ""}${p.medications?.length ? ` | meds: ${p.medications.join(", ")}` : ""}`)
+    );
+    L.push("");
+    L.push(`DOCUMENTS: ${reports.length} file(s) stored (${scanReports.length} scan/x-ray).`);
+    reports.slice(0, 15).forEach((r) => L.push(`- [${r.category}] ${r.name}`));
+    L.push("");
+    const flags: string[] = [];
+    if (b && /Hypertension|Crisis/.test(b.category || "")) flags.push("Elevated blood pressure - monitor and consult a doctor.");
+    if (s && /Diabetes|Prediabetes/.test(s.category || "")) flags.push("Blood sugar above normal - dietary review advised.");
+    if (w && /Overweight|Obese|Underweight/.test(w.category || "")) flags.push(`BMI is ${w.category} - consider lifestyle guidance.`);
+    L.push("ASSESSMENT");
+    L.push(flags.length ? flags.map((f) => "- " + f).join("\n") : "- All logged vitals are within normal ranges. Keep it up!");
+    L.push("");
+    L.push("Generated by Saarthi. Not a substitute for professional medical advice.");
+    return L.join("\n");
+  };
+
+  const downloadSummary = () => {
+    const blob = new Blob([buildSummary()], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `saarthi-health-summary-${new Date().toISOString().slice(0, 10)}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    toast({ title: "Health summary downloaded ✅" });
+  };
+
+  const shareWithDoctor = async () => {
+    const text = buildSummary();
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: "Saarthi Health Summary", text });
+        return;
+      } catch { /* user cancelled */ }
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      toast({ title: "Copied to clipboard", description: "Summary copied — paste it to share with your doctor." });
+    } catch {
+      toast({ title: "Could not share", variant: "destructive" });
+    }
+  };
+
+  const sharePrescription = async (p: any) => {
+    const text = `Prescription — ${p.doctorName}${p.speciality ? ` (${p.speciality})` : ""}${p.date ? `\nDate: ${p.date}` : ""}\n${(p.medications || []).map((m: string) => `• ${m}`).join("\n")}${p.notes ? `\nNotes: ${p.notes}` : ""}\n\nvia Saarthi`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: `Prescription — ${p.doctorName}`, text });
+        return;
+      } catch { /* cancelled */ }
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      toast({ title: "Copied to clipboard", description: "Prescription copied — paste it to share." });
+    } catch {
+      toast({ title: "Could not share", variant: "destructive" });
     }
   };
 
@@ -102,6 +377,19 @@ const Index = () => {
     scrollToSection('monitoring-section');
   };
 
+  const logout = () => {
+    localStorage.removeItem("saarthi_token");
+    localStorage.removeItem("saarthi_user");
+    window.location.href = "/";
+  };
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  if (!authed) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-stone-600">Taking you to sign in…</div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-stone-50 via-amber-50 to-stone-100">
       {/* Header Section */}
@@ -123,9 +411,29 @@ const Index = () => {
                 <p className="text-sm text-stone-700 font-medium">Your comprehensive health management system</p>
               </div>
             </div>
-            <div className="flex items-center space-x-2 bg-green-100 px-4 py-2 rounded-full border border-green-300">
-              <Shield className="w-5 h-5 text-green-700" />
-              <span className="text-green-800 font-semibold text-sm">Secure & Encrypted</span>
+            <div className="flex items-center gap-3">
+              <div className="hidden sm:flex items-center space-x-2 bg-green-100 px-4 py-2 rounded-full border border-green-300">
+                <Shield className="w-5 h-5 text-green-700" />
+                <span className="text-green-800 font-semibold text-sm">Secure & Encrypted</span>
+              </div>
+              {/* Logged-in user profile */}
+              <div className="relative">
+                <button
+                  onClick={() => setMenuOpen((o) => !o)}
+                  className="w-10 h-10 rounded-full bg-gradient-to-br from-stone-800 to-amber-900 text-white flex items-center justify-center font-bold shadow"
+                  title={user?.name}
+                >
+                  {(user?.name || "U").trim().charAt(0).toUpperCase()}
+                </button>
+                {menuOpen && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-2 z-50 text-stone-700">
+                    <div className="px-4 py-2 text-sm text-stone-500 border-b">{user?.name || "Signed in"}</div>
+                    <button onClick={logout} className="w-full px-4 py-2 text-left text-red-600 hover:bg-stone-50">
+                      Logout
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -155,42 +463,42 @@ const Index = () => {
               <div className="grid grid-cols-2 md:grid-cols-6 gap-4 justify-center">
                 <Button 
                   onClick={handleUploadReport}
-                  className="bg-gradient-to-r from-amber-950 to-amber-600  px-6 py-4 rounded-xl font-semibold shadow-lg transform hover:scale-105 transition-all duration-200"
+                  className="bg-[#A67B5B] text-white border border-[#8f6647] hover:bg-[#96694a]  px-6 py-4 rounded-none font-semibold shadow-sm hover:scale-105 transition-all duration-200"
                 >
                   <Upload className="w-5 h-5 mr-2" />
                   Upload Reports
                 </Button>
                 <Button 
                   onClick={handleBMICalculator}
-                  className="bg-gradient-to-r from-amber-950 to-amber-600  px-6 py-4 rounded-xl font-semibold shadow-lg transform hover:scale-105 transition-all duration-200"
+                  className="bg-[#A67B5B] text-white border border-[#8f6647] hover:bg-[#96694a]  px-6 py-4 rounded-none font-semibold shadow-sm hover:scale-105 transition-all duration-200"
                 >
                   <Calculator className="w-5 h-5 mr-2" />
                   Health Calculator
                 </Button>
                 <Button 
                   onClick={handlePrescriptions}
-                  className="bg-gradient-to-r from-amber-950 to-amber-600 px-6 py-4 rounded-xl font-semibold shadow-lg transform hover:scale-105 transition-all duration-200"
+                  className="bg-[#A67B5B] text-white border border-[#8f6647] hover:bg-[#96694a] px-6 py-4 rounded-none font-semibold shadow-sm hover:scale-105 transition-all duration-200"
                 >
                   <Pill className="w-5 h-5 mr-2" />
                   Prescriptions
                 </Button>
                 <Button 
                   onClick={handleHealthRecords}
-                  className="bg-gradient-to-r from-amber-950 to-amber-600 px-6 py-4 rounded-xl font-semibold shadow-lg transform hover:scale-105 transition-all duration-200"
+                  className="bg-[#A67B5B] text-white border border-[#8f6647] hover:bg-[#96694a] px-6 py-4 rounded-none font-semibold shadow-sm hover:scale-105 transition-all duration-200"
                 >
                   <Stethoscope className="w-5 h-5 mr-2" />
                   Health Records
                 </Button>
                 <Button 
                   onClick={handleScans}
-                  className="bg-gradient-to-r from-amber-950 to-amber-600 px-6 py-4 rounded-xl font-semibold shadow-lg transform hover:scale-105 transition-all duration-200"
+                  className="bg-[#A67B5B] text-white border border-[#8f6647] hover:bg-[#96694a] px-6 py-4 rounded-none font-semibold shadow-sm hover:scale-105 transition-all duration-200"
                 >
                   <Scan className="w-5 h-5 mr-2" />
                   X-rays & Scans
                 </Button>
                 <Button 
                   onClick={handleHealthMonitoring}
-                  className="bg-gradient-to-r from-amber-950 to-amber-600 px-6 py-4 rounded-xl font-semibold shadow-lg transform hover:scale-105 transition-all duration-200"
+                  className="bg-[#A67B5B] text-white border border-[#8f6647] hover:bg-[#96694a] px-6 py-4 rounded-none font-semibold shadow-sm hover:scale-105 transition-all duration-200"
                 >
                   <Activity className="w-5 h-5 mr-2" />
                   Health Monitoring
@@ -227,31 +535,45 @@ const Index = () => {
                       <h3 className="text-3xl font-bold mb-4"
                        style={{ color: 'hsl(25, 50%, 20%)' }}>Drop your files here</h3>
                       <p className="text-amber-600 mb-6 font-medium text-lg">Support for PDF, JPG, PNG files up to 25MB</p>
-                      <div className="flex gap-2 mb-4">
-                        <Button className="bg-amber-900 hover:bg-amber-700 text-white">
+                      <div className="flex gap-2 mb-4 justify-center">
+                        <Button onClick={() => fileInputRef.current?.click()} disabled={uploading} className="bg-amber-900 hover:bg-amber-700 text-white">
                           <FileText className="w-4 h-4 mr-2" />
-                          Browse Files
+                          {uploading ? "Uploading…" : "Browse Files"}
                         </Button>
-                        <Button variant="outline" className="border-stone-400">
+                        <Button onClick={() => cameraInputRef.current?.click()} disabled={uploading} variant="outline" className="border-stone-400">
                           <Camera className="w-4 h-4 mr-2" />
                           Take Photo
                         </Button>
                       </div>
+                      <input ref={fileInputRef} type="file" accept=".pdf,image/*" className="hidden" onChange={onFilePicked} />
+                      <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onFilePicked} />
                     </div>
                   </div>
                 </div>
-                <div 
-                  className="h-96 bg-cover bg-center rounded-2xl border-2 border-stone-300 shadow-lg"
-                  style={{
-                    backgroundImage: `url('https://images.unsplash.com/photo-1576091160550-2173dba999ef?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80')`
-                  }}
-                >
-                  <div className="h-full bg-gradient-to-t from-stone-900/70 to-transparent rounded-2xl flex items-end p-6">
-                    <div className="text-white">
-                      <h3 className="text-2xl font-bold mb-2">Document Management</h3>
-                      <p className="text-stone-200">Secure storage for all your medical documents</p>
+                <div className="h-96 overflow-y-auto rounded-2xl border-2 border-stone-300 shadow-lg bg-white p-4">
+                  <h3 className="text-lg font-bold text-stone-800 mb-3">Your documents ({reports.length})</h3>
+                  {reports.length === 0 ? (
+                    <p className="text-stone-500 text-sm">No files yet. Upload a report, prescription, or scan and it will be stored securely here.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {reports.map((r) => (
+                        <div key={r._id} className="flex items-center justify-between bg-stone-50 border border-stone-200 rounded-lg px-3 py-2">
+                          <div className="min-w-0">
+                            <div className="font-medium text-stone-800 truncate">{r.name}</div>
+                            <div className="text-xs text-stone-500 capitalize">{r.category} · {Math.round((r.size || 0) / 1024)} KB</div>
+                          </div>
+                          <div className="flex gap-1 shrink-0">
+                            <Button size="sm" variant="outline" onClick={() => viewReport(r._id)} className="border-stone-300">
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => removeReport(r._id)} className="border-red-300 text-red-600">
+                              ✕
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -274,7 +596,7 @@ const Index = () => {
                 <div className="space-y-6">
                   <h3 className="text-xl font-bold "
                    style={{ color: 'hsl(25, 50%, 20%)' }}>BMI Calculator</h3>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-4 min-h-[132px] content-start">
                     <div>
                       <Label className="text-stone-800 font-semibold mb-2 block">Weight (kg)</Label>
                       <Input 
@@ -297,7 +619,7 @@ const Index = () => {
                   
                   <Button 
                     onClick={calculateBMI}
-                    className="w-full bg-gradient-to-r from-amber-800 to-stone-900  py-4 text-lg font-semibold shadow-lg"
+                    className="w-full bg-[#A67B5B] hover:bg-[#96694a] text-white  py-4 text-lg font-semibold shadow-lg"
                   >
                     Calculate BMI
                   </Button>
@@ -317,7 +639,7 @@ const Index = () => {
                 <div className="space-y-6">
                   <h3 className="text-xl font-bold "
                    style={{ color: 'hsl(25, 50%, 20%)' }}>Blood Pressure</h3>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-4 min-h-[132px] content-start">
                     <div>
                       <Label className="text-stone-800 font-semibold mb-2 block">Systolic</Label>
                       <Input 
@@ -340,7 +662,7 @@ const Index = () => {
                   
                   <Button 
                     onClick={checkBloodPressure}
-                    className="w-full bg-gradient-to-r from-amber-800 to-stone-900  text-white py-4 text-lg font-semibold shadow-lg"
+                    className="w-full bg-[#A67B5B] hover:bg-[#96694a] text-white  text-white py-4 text-lg font-semibold shadow-lg"
                   >
                     Check BP
                   </Button>
@@ -358,21 +680,37 @@ const Index = () => {
                 <div className="space-y-6">
                   <h3 className="text-xl font-bold "
                    style={{ color: 'hsl(25, 50%, 20%)' }}>Blood Sugar</h3>
-                  <div>
+                  <div className="min-h-[132px]">
                     <Label className=" font-semibold mb-2 block"
                      style={{ color: 'hsl(25, 50%, 20%)' }}>Sugar Level (mg/dL)</Label>
-                    <Input 
+                    <Input
                       value={sugar}
                       onChange={(e) => setSugar(e.target.value)}
                       placeholder="90-100"
-                      className="border-amber-300 focus:border-amber-500 bg-white text-lg p-3"
+                      className="border-stone-300 focus:border-stone-500 bg-white text-lg p-3"
                        style={{ color: 'hsl(25, 50%, 20%)' }}
                     />
+                    <div className="mt-3 grid grid-cols-3 gap-2">
+                      {(["fasting", "postmeal", "random"] as const).map((c) => (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => setSugarContext(c)}
+                          className={`py-2 rounded-lg text-sm border transition-colors ${
+                            sugarContext === c
+                              ? "bg-[#A67B5B] text-white border-[#8f6647]"
+                              : "bg-white text-stone-700 border-stone-300 hover:bg-stone-50"
+                          }`}
+                        >
+                          {c === "fasting" ? "Fasting" : c === "postmeal" ? "Post-meal" : "Random"}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                   
                   <Button 
                     onClick={checkBloodSugar}
-                    className="w-full bg-gradient-to-r from-amber-800 to-stone-900  text-white py-4 text-lg font-semibold shadow-lg"
+                    className="w-full bg-[#A67B5B] hover:bg-[#96694a] text-white  text-white py-4 text-lg font-semibold shadow-lg"
 
                   >
                     Check Sugar
@@ -409,9 +747,9 @@ const Index = () => {
                     Weight & BP Trends
                   </h3>
                   <ResponsiveContainer width="100%" height={300}>
-                    <LineChart data={healthData}>
+                    <LineChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#A8A29E" />
-                      <XAxis dataKey="month" stroke="#57534E" fontSize={12} fontWeight="bold" />
+                      <XAxis dataKey="label" stroke="#57534E" fontSize={12} fontWeight="bold" />
                       <YAxis stroke="#57534E" fontSize={12} fontWeight="bold" />
                       <Tooltip 
                         contentStyle={{ 
@@ -434,9 +772,9 @@ const Index = () => {
                     Blood Sugar Levels
                   </h3>
                   <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={healthData}>
+                    <BarChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#A8A29E" />
-                      <XAxis dataKey="month" stroke="#57534E" fontSize={12} fontWeight="bold" />
+                      <XAxis dataKey="label" stroke="#57534E" fontSize={12} fontWeight="bold" />
                       <YAxis stroke="#57534E" fontSize={12} fontWeight="bold" />
                       <Tooltip 
                         contentStyle={{ 
@@ -469,67 +807,101 @@ const Index = () => {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <div>
                   <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-xl font-bold"
-                     style={{ color: 'hsl(25, 50%, 20%)' }}>Stored Prescriptions</h3>
-                    <Button className="bg-stone-800 hover:bg-stone-900 text-white">
-                      <Plus className="w-4 h-4 mr-2" />
-                      Add New
+                    <h3 className="text-xl font-bold" style={{ color: 'hsl(25, 50%, 20%)' }}>
+                      Stored Prescriptions ({prescriptions.length})
+                    </h3>
+                    <Button onClick={() => setShowRxForm((v) => !v)} className="bg-stone-800 hover:bg-stone-900 text-white">
+                      {showRxForm ? <Minus className="w-4 h-4 mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
+                      {showRxForm ? "Close" : "Add New"}
                     </Button>
                   </div>
-                  
-                  {/* Example Prescription */}
-                  <div className="bg-gradient-to-r from-white to-stone-50 border-2 border-stone-200 rounded-2xl p-6 mb-4 shadow-lg hover:shadow-xl transition-all duration-300">
-                    <div className="flex items-start justify-between mb-4">
-                      <div>
-                        <h4 className="font-bold text-stone-900 text-lg">Dr. Sarah Johnson</h4>
-                        <p className="text-stone-600">Internal Medicine</p>
-                        <p className="text-sm text-stone-500">June 15, 2024</p>
-                      </div>
-                      <Badge className="bg-green-200 text-green-900 border-green-400">Active</Badge>
-                    </div>
-                    
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-center p-3 bg-stone-50 rounded-lg border border-stone-200">
-                        <div>
-                          <div className="font-semibold text-stone-900">Iron Supplement</div>
-                          <div className="text-sm text-stone-600">325mg - Take once daily with food</div>
-                        </div>
-                        <div className="text-sm text-stone-800 font-semibold">30 days</div>
-                      </div>
-                      
-                      <div className="flex justify-between items-center p-3 bg-stone-50 rounded-lg border border-stone-200">
-                        <div>
-                          <div className="font-semibold text-stone-900">Vitamin D3</div>
-                          <div className="text-sm text-stone-600">2000 IU - Take once daily</div>
-                        </div>
-                        <div className="text-sm text-stone-800 font-semibold">60 days</div>
-                      </div>
-                    </div>
 
-                    <div className="mt-4 flex gap-2">
-                      <Button size="sm" variant="outline" className="border-stone-400">
-                        <Eye className="w-4 h-4 mr-2" />
-                        View PDF
-                      </Button>
-                      <Button size="sm" variant="outline" className="border-stone-400">
-                        <Share className="w-4 h-4 mr-2" />
-                        Share
+                  {showRxForm && (
+                    <div className="bg-white border-2 border-stone-200 rounded-2xl p-5 mb-4 space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label className="text-stone-700">Doctor name *</Label>
+                          <Input value={rxForm.doctorName} onChange={(e) => setRxForm({ ...rxForm, doctorName: e.target.value })} placeholder="Dr. ..." className="border-stone-300" />
+                        </div>
+                        <div>
+                          <Label className="text-stone-700">Speciality</Label>
+                          <Input value={rxForm.speciality} onChange={(e) => setRxForm({ ...rxForm, speciality: e.target.value })} placeholder="e.g. Gynaecology" className="border-stone-300" />
+                        </div>
+                      </div>
+                      <div>
+                        <Label className="text-stone-700">Date</Label>
+                        <Input type="date" value={rxForm.date} onChange={(e) => setRxForm({ ...rxForm, date: e.target.value })} className="border-stone-300" />
+                      </div>
+                      <div>
+                        <Label className="text-stone-700">Medications (one per line)</Label>
+                        <textarea value={rxForm.medications} onChange={(e) => setRxForm({ ...rxForm, medications: e.target.value })} rows={3} placeholder={"Iron Supplement 325mg\nVitamin D3 2000 IU"} className="w-full border border-stone-300 rounded-lg p-2 text-stone-800" />
+                      </div>
+                      <div>
+                        <Label className="text-stone-700">Notes</Label>
+                        <Input value={rxForm.notes} onChange={(e) => setRxForm({ ...rxForm, notes: e.target.value })} placeholder="Optional" className="border-stone-300" />
+                      </div>
+                      <div>
+                        <Label className="text-stone-700">Attach prescription (PDF/image, optional)</Label>
+                        <input type="file" accept=".pdf,image/*" onChange={(e) => setRxFile(e.target.files?.[0] || null)} className="block text-sm mt-1" />
+                      </div>
+                      <Button onClick={submitPrescription} disabled={savingRx} className="w-full bg-stone-800 text-white">
+                        {savingRx ? "Saving…" : "Save Prescription"}
                       </Button>
                     </div>
+                  )}
+
+                  {prescriptions.length === 0 && !showRxForm && (
+                    <p className="text-stone-500">No prescriptions yet. Click “Add New” to add one.</p>
+                  )}
+
+                  <div className="space-y-4">
+                    {prescriptions.map((p) => (
+                      <div key={p._id} className="bg-gradient-to-r from-white to-stone-50 border-2 border-stone-200 rounded-2xl p-6 shadow-lg">
+                        <div className="flex items-start justify-between mb-3">
+                          <div>
+                            <h4 className="font-bold text-stone-900 text-lg">{p.doctorName}</h4>
+                            {p.speciality && <p className="text-stone-600">{p.speciality}</p>}
+                            {p.date && <p className="text-sm text-stone-500">{p.date}</p>}
+                          </div>
+                          <Badge className="bg-green-200 text-green-900 border-green-400">{p.status || "Active"}</Badge>
+                        </div>
+                        {p.medications?.length > 0 && (
+                          <div className="space-y-2">
+                            {p.medications.map((m: string, i: number) => (
+                              <div key={i} className="p-2 bg-stone-50 rounded-lg border border-stone-200 text-stone-800 text-sm">💊 {m}</div>
+                            ))}
+                          </div>
+                        )}
+                        {p.notes && <p className="text-sm text-stone-600 mt-2">{p.notes}</p>}
+                        <div className="mt-4 flex gap-2 flex-wrap">
+                          {p.reportId && (
+                            <Button size="sm" variant="outline" onClick={() => viewReport(p.reportId)} className="border-stone-400">
+                              <Eye className="w-4 h-4 mr-2" />
+                              View PDF
+                            </Button>
+                          )}
+                          <Button size="sm" variant="outline" onClick={() => sharePrescription(p)} className="border-stone-400">
+                            <Share className="w-4 h-4 mr-2" />
+                            Share
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => removePrescription(p._id)} className="border-red-300 text-red-600">
+                            Delete
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
 
-                <div>
-                  <div 
-                    className="h-96 bg-cover bg-center rounded-2xl border-2 border-stone-300 shadow-lg mb-4"
-                    style={{
-                      backgroundImage: `url('https://images.unsplash.com/photo-1559757175-0eb30cd8c063?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80')`
-                    }}
+                <div className="hidden lg:block">
+                  <div
+                    className="h-full min-h-[300px] bg-cover bg-center rounded-2xl border-2 border-stone-300 shadow-lg"
+                    style={{ backgroundImage: `url('https://images.unsplash.com/photo-1559757175-0eb30cd8c063?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80')` }}
                   >
                     <div className="h-full bg-gradient-to-t from-stone-900/70 to-transparent rounded-2xl flex items-end p-6">
                       <div className="text-white">
                         <h3 className="text-2xl font-bold mb-2">Medication Tracking</h3>
-                        <p className="text-stone-200">Smart reminders and compliance monitoring</p>
+                        <p className="text-stone-200">Your prescriptions, stored and shareable</p>
                       </div>
                     </div>
                   </div>
@@ -552,60 +924,52 @@ const Index = () => {
             <CardContent className="pt-6">
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-2 space-y-6">
-                  <h3 className="text-xl font-bold ">Recent Consultations</h3>
-                  
-                  <div className="space-y-4">
-                    <div className="bg-gradient-to-r from-white to-stone-50 border-2 border-stone-200 rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300">
-                      <div className="flex items-start space-x-4">
-                        <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-stone-300">
-                          <img 
-                            src="https://img.freepik.com/premium-photo/young-indian-girl-female-doctor_669954-15854.jpg"
-                            alt="Dr. Sarah Johnson"
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                        <div className="flex-1">
-                          <h4 className="font-bold text-stone-900 text-lg">Dr. Sarah Johnson</h4>
-                          <p className="text-stone-600 mb-2">Internal Medicine Specialist</p>
-                          <p className="text-sm text-stone-500 mb-3">Last visited: June 15, 2024</p>
-                          <div className="flex flex-wrap gap-2">
-                            <Badge className="bg-stone-200 text-stone-900 border-stone-400">Iron Deficiency</Badge>
-                            <Badge className="bg-blue-200 text-blue-900 border-blue-400">Follow-up Required</Badge>
+                  <h3 className="text-xl font-bold text-stone-900">Recent Consultations</h3>
+                  {prescriptions.length === 0 ? (
+                    <p className="text-stone-500">No consultations yet. Add a prescription above and it will appear here automatically.</p>
+                  ) : (
+                    <div className="space-y-4">
+                      {prescriptions.map((p) => (
+                        <div key={p._id} className="bg-gradient-to-r from-white to-stone-50 border-2 border-stone-200 rounded-2xl p-6 shadow-lg">
+                          <div className="flex items-start space-x-4">
+                            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-stone-700 to-amber-800 text-white flex items-center justify-center text-xl font-bold">
+                              {(p.doctorName || "D").trim().charAt(0).toUpperCase()}
+                            </div>
+                            <div className="flex-1">
+                              <h4 className="font-bold text-stone-900 text-lg">{p.doctorName}</h4>
+                              {p.speciality && <p className="text-stone-600 mb-1">{p.speciality}</p>}
+                              {p.date && <p className="text-sm text-stone-500 mb-2">Visited: {p.date}</p>}
+                              {p.medications?.length > 0 && (
+                                <div className="flex flex-wrap gap-2">
+                                  {p.medications.slice(0, 4).map((m: string, i: number) => (
+                                    <Badge key={i} className="bg-stone-200 text-stone-900 border-stone-400">{m}</Badge>
+                                  ))}
+                                </div>
+                              )}
+                              {p.reportId && (
+                                <div className="mt-3">
+                                  <Button size="sm" variant="outline" onClick={() => viewReport(p.reportId)} className="border-stone-400">
+                                    <Eye className="w-4 h-4 mr-2" />
+                                    View Report
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
                           </div>
-                          <div className="mt-3">
-                            <Button size="sm" variant="outline" className="border-stone-400">
-                              <Eye className="w-4 h-4 mr-2" />
-                              View Report
-                            </Button>
-                          </div>
                         </div>
-                      </div>
+                      ))}
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 <div>
-                  <div 
-                    className="h-64 bg-cover bg-center rounded-2xl border-2 border-stone-300 shadow-lg mb-6"
-                    style={{
-                      backgroundImage: `url('https://images.unsplash.com/photo-1576091160550-2173dba999ef?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80')`
-                    }}
-                  >
-                    <div className="h-full bg-gradient-to-t from-stone-900/70 to-transparent rounded-2xl flex items-end p-6">
-                      <div className="text-white">
-                        <h3 className="text-xl font-bold">Healthcare Network</h3>
-                        <p className="text-stone-200">Connected specialists</p>
-                      </div>
-                    </div>
-                  </div>
-
                   <div className="space-y-4">
                     <div className="text-center p-4 bg-gradient-to-br from-stone-100 to-stone-200 rounded-xl border-2 border-stone-300">
-                      <div className="text-3xl font-bold text-stone-900">8</div>
+                      <div className="text-3xl font-bold text-stone-900">{connectedDoctors}</div>
                       <div className="text-sm text-stone-700 font-semibold">Connected Doctors</div>
                     </div>
                     <div className="text-center p-4 bg-gradient-to-br from-stone-100 to-stone-200 rounded-xl border-2 border-stone-300">
-                      <div className="text-3xl font-bold text-stone-900">24</div>
+                      <div className="text-3xl font-bold text-stone-900">{prescriptions.length}</div>
                       <div className="text-sm text-stone-700 font-semibold">Total Consultations</div>
                     </div>
                   </div>
@@ -628,87 +992,58 @@ const Index = () => {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <div className="space-y-6">
                   <div className="flex justify-between items-center">
-                    <h3 className="text-xl font-bold text-stone-900">Recent Scans</h3>
-                    <Button className="bg-stone-800 hover:bg-stone-900 text-white">
+                    <h3 className="text-xl font-bold text-stone-900">Your Scans ({scanReports.length})</h3>
+                    <Button onClick={() => scanInputRef.current?.click()} disabled={uploading} className="bg-stone-800 hover:bg-stone-900 text-white">
                       <Upload className="w-4 h-4 mr-2" />
-                      Upload Scan
+                      {uploading ? "Uploading…" : "Upload Scan"}
                     </Button>
+                    <input ref={scanInputRef} type="file" accept=".pdf,image/*" className="hidden" onChange={onScanPicked} />
                   </div>
-                  
-                  <div className="space-y-4">
-                    <div className="bg-gradient-to-r from-white to-stone-50 border-2 border-stone-200 rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300">
-                      <div className="flex items-center space-x-4 mb-4">
-                        <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-cyan-100 rounded-xl flex items-center justify-center border-2 border-blue-300">
-                          <Scan className="w-10 h-10 text-blue-700" />
-                        </div>
-                        <div>
-                          <h4 className="font-bold text-stone-900 text-lg">Chest X-Ray</h4>
-                          <p className="text-stone-600">June 10, 2024</p>
-                          <Badge className="bg-green-200 text-green-900 border-green-400 mt-1">Normal</Badge>
-                        </div>
-                      </div>
-                      <p className="text-sm text-stone-700 mb-4">Routine chest examination shows clear lung fields with no abnormalities detected.</p>
-                      <div className="flex gap-2">
-                        <Button size="sm" variant="outline" className="border-stone-400">
-                          <Eye className="w-4 h-4 mr-2" />
-                          View PDF
-                        </Button>
-                        <Button size="sm" variant="outline" className="border-stone-400">
-                          <Download className="w-4 h-4 mr-2" />
-                          Download
-                        </Button>
-                      </div>
-                    </div>
 
-                    <div className="bg-gradient-to-r from-white to-stone-50 border-2 border-stone-200 rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300">
-                      <div className="flex items-center space-x-4 mb-4">
-                        <div className="w-20 h-20 bg-gradient-to-br from-purple-100 to-pink-100 rounded-xl flex items-center justify-center border-2 border-purple-300">
-                          <Heart className="w-10 h-10 text-purple-700" />
+                  {scanReports.length === 0 ? (
+                    <p className="text-stone-500">No scans yet. Upload an X-ray, ECG, or any report PDF/image to keep it handy.</p>
+                  ) : (
+                    <div className="space-y-4">
+                      {scanReports.map((r) => (
+                        <div key={r._id} className="bg-gradient-to-r from-white to-stone-50 border-2 border-stone-200 rounded-2xl p-6 shadow-lg">
+                          <div className="flex items-center space-x-4 mb-4">
+                            <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-cyan-100 rounded-xl flex items-center justify-center border-2 border-blue-300">
+                              <Scan className="w-8 h-8 text-blue-700" />
+                            </div>
+                            <div className="min-w-0">
+                              <h4 className="font-bold text-stone-900 text-lg truncate">{r.name}</h4>
+                              <p className="text-stone-600 text-sm">{new Date(r.createdAt).toLocaleDateString("en-IN")}</p>
+                              <Badge className="bg-stone-200 text-stone-900 border-stone-400 mt-1">{Math.round((r.size || 0) / 1024)} KB</Badge>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button size="sm" variant="outline" onClick={() => viewReport(r._id)} className="border-stone-400">
+                              <Eye className="w-4 h-4 mr-2" />
+                              View
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => downloadReport(r._id)} className="border-stone-400">
+                              <Download className="w-4 h-4 mr-2" />
+                              Download
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => removeReport(r._id)} className="border-red-300 text-red-600">
+                              Delete
+                            </Button>
+                          </div>
                         </div>
-                        <div>
-                          <h4 className="font-bold text-stone-900 text-lg">ECG Report</h4>
-                          <p className="text-stone-600">May 25, 2024</p>
-                          <Badge className="bg-green-200 text-green-900 border-green-400 mt-1">Normal Rhythm</Badge>
-                        </div>
-                      </div>
-                      <p className="text-sm text-stone-700 mb-4">Electrocardiogram shows normal sinus rhythm with no signs of arrhythmia.</p>
-                      <div className="flex gap-2">
-                        <Button size="sm" variant="outline" className="border-stone-400">
-                          <Eye className="w-4 h-4 mr-2" />
-                          View PDF
-                        </Button>
-                        <Button size="sm" variant="outline" className="border-stone-400">
-                          <Download className="w-4 h-4 mr-2" />
-                          Download
-                        </Button>
-                      </div>
+                      ))}
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 <div>
-                  <div 
-                    className="h-80 bg-cover bg-center rounded-2xl border-2 border-stone-300 shadow-lg mb-6"
-                    style={{
-                      backgroundImage: `url('https://images.unsplash.com/photo-1559757148-5c350d0d3c56?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80')`
-                    }}
-                  >
-                    <div className="h-full bg-gradient-to-t from-stone-900/70 to-transparent rounded-2xl flex items-end p-6">
-                      <div className="text-white">
-                        <h3 className="text-2xl font-bold mb-2">Digital Imaging</h3>
-                        <p className="text-stone-200">Advanced medical imaging and diagnostics</p>
-                      </div>
-                    </div>
-                  </div>
-
                   <div className="grid grid-cols-2 gap-4">
                     <div className="text-center p-4 bg-gradient-to-br from-stone-100 to-stone-200 rounded-xl border-2 border-stone-300">
-                      <div className="text-2xl font-bold text-stone-900">15</div>
+                      <div className="text-2xl font-bold text-stone-900">{scanReports.length}</div>
                       <div className="text-sm text-stone-700 font-semibold">Total Scans</div>
                     </div>
                     <div className="text-center p-4 bg-gradient-to-br from-stone-100 to-stone-200 rounded-xl border-2 border-stone-300">
-                      <div className="text-2xl font-bold text-stone-900">100%</div>
-                      <div className="text-sm text-stone-700 font-semibold">Digital Storage</div>
+                      <div className="text-2xl font-bold text-stone-900">{storageMB} MB</div>
+                      <div className="text-sm text-stone-700 font-semibold">Storage Used</div>
                     </div>
                   </div>
                 </div>
@@ -733,11 +1068,11 @@ const Index = () => {
               Join thousands who trust MediVault for secure, comprehensive health record management.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button className="bg-gradient-to-r from-stone-800 to-stone-900 hover:from-stone-900 hover:to-black text-white px-8 py-4 rounded-xl font-semibold text-lg shadow-lg">
+              <Button onClick={downloadSummary} className="bg-gradient-to-r from-stone-800 to-stone-900 hover:from-stone-900 hover:to-black text-white px-8 py-4 rounded-xl font-semibold text-lg shadow-lg">
                 <Download className="w-5 h-5 mr-3" />
                 Download Health Summary
               </Button>
-              <Button className="bg-gradient-to-r from-stone-700 to-stone-800 hover:from-stone-800 hover:to-stone-900 text-white px-8 py-4 rounded-xl font-semibold text-lg shadow-lg">
+              <Button onClick={shareWithDoctor} className="bg-gradient-to-r from-stone-700 to-stone-800 hover:from-stone-800 hover:to-stone-900 text-white px-8 py-4 rounded-xl font-semibold text-lg shadow-lg">
                 <Share className="w-5 h-5 mr-3" />
                 Share with Doctor
               </Button>
